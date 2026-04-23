@@ -1,0 +1,769 @@
+{
+  "name": "Lead Project Idea Evaluation trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "4CorILUM7dTEvLNh",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4CorILUM7dTEvLNh",
+          "cachedResultName": "Lead Project Idea"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        -160
+      ],
+      "id": "bf7f3a93-33fc-4b87-b990-5a0835708f59",
+      "name": "Call 'Lead Project Idea'",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "source": "googleSheets",
+        "documentId": {
+          "__rl": true,
+          "value": "1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE",
+          "mode": "list",
+          "cachedResultName": "Evaluation_lead_worksheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1219804993,
+          "mode": "list",
+          "cachedResultName": "Sheet3",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit#gid=1219804993"
+        },
+        "limitRows": true
+      },
+      "type": "n8n-nodes-base.evaluationTrigger",
+      "typeVersion": 4.7,
+      "position": [
+        -672,
+        112
+      ],
+      "id": "2fb6939a-c1c1-4ab2-aa4e-0fe7303d016f",
+      "name": "When fetching a dataset row",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LfwRqS1E46inJI8f",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import json\n\n# ── inputs ────────────────────────────────────────────────────────────────────\npipeline_items = [item['json'] for item in _items if 'output' in item['json']]\nsheet_rows     = [item['json'] for item in _items if 'row_number' in item['json']]\n\nresults = []\n\nfor idx, (agent_output_wrapper, sheet_row) in enumerate(zip(pipeline_items, sheet_rows)):\n    agent_output = agent_output_wrapper.get('output', {})\n\n    # ── extract actual values ─────────────────────────────────────────────────\n    actual_lead_id            = agent_output.get('lead_id', '')\n    actual_priority_tier      = agent_output.get('priority_tier', '')\n    actual_channel_executed   = agent_output.get('channel_executed', '')\n    actual_execution_status   = agent_output.get('execution_status', '')\n    actual_fallback_triggered = agent_output.get('fallback_triggered', False)\n    actual_risk_flags         = agent_output.get('risk_flags', [])\n    message_snapshot          = agent_output.get('message_snapshot', {})\n\n    actual_message = (\n        message_snapshot.get('sms') or\n        (message_snapshot.get('email') or {}).get('body') or\n        (message_snapshot.get('call') or {}).get('opening_line') or\n        ''\n    )\n\n    # ── extract expected values ───────────────────────────────────────────────\n    input_lead_id             = sheet_row.get('lead_id', '')\n    expected_priority_tier    = sheet_row.get('expected_priority_tier', '')\n    expected_channel_executed = sheet_row.get('expected_channel_executed', '')\n    expected_execution_status = sheet_row.get('expected_execution_status', '')\n    expected_fallback         = sheet_row.get('expected_fallback_triggered', False)\n    if isinstance(expected_fallback, str):\n        expected_fallback = expected_fallback.strip().upper() == 'TRUE'\n\n    # ── code eval checks ──────────────────────────────────────────────────────\n    lead_id_consistent       = actual_lead_id == input_lead_id\n    channel_correct          = actual_channel_executed == expected_channel_executed\n    tier_correct             = actual_priority_tier == expected_priority_tier\n    execution_status_correct = actual_execution_status == expected_execution_status\n    fallback_correct         = actual_fallback_triggered == expected_fallback\n    contact_channel_match    = actual_execution_status != 'contact_missing'\n    pipeline_completed       = bool(actual_lead_id) and 'error' not in agent_output\n\n    if actual_priority_tier == 'hot' and actual_channel_executed == 'no_action':\n        no_action_on_hot_flag = any('no_action on hot' in f.lower() for f in actual_risk_flags)\n    else:\n        no_action_on_hot_flag = True\n\n    results.append({\n        'json': {\n            'lead_id':                   input_lead_id,\n            'Scenario':                  sheet_row.get('Scenario', ''),\n            'textContent':               sheet_row.get('textContent', ''),\n            'expected_objective':        sheet_row.get('expected_objective', ''),\n            'actual_message':            actual_message,\n            'actual_priority_tier':      actual_priority_tier,\n            'actual_channel_executed':   actual_channel_executed,\n            'actual_execution_status':   actual_execution_status,\n            'actual_fallback_triggered': actual_fallback_triggered,\n            'lead_id_consistent':        lead_id_consistent,\n            'channel_correct':           channel_correct,\n            'tier_correct':              tier_correct,\n            'execution_status_correct':  execution_status_correct,\n            'fallback_correct':          fallback_correct,\n            'contact_channel_match':     contact_channel_match,\n            'no_action_on_hot_flag':     no_action_on_hot_flag,\n            'pipeline_completed':        pipeline_completed,\n        },\n        'pairedItem': [\n            {'item': idx},\n            {'item': idx + len(pipeline_items)}\n        ]\n    })\n\nreturn results\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        240
+      ],
+      "id": "4a9713b4-8ee5-4bc8-9a88-873c04c7a628",
+      "name": "Code in Python2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c04d2a77-4899-495a-a4fb-83fb57cb7557",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "48497f72-825f-4c2b-aa60-1360a2ec9be3",
+              "name": "textContent",
+              "value": "={{ $json.textContent }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -192,
+        -144
+      ],
+      "id": "67feaf8e-689f-42b1-a785-a27a41e370e5",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE",
+          "mode": "list",
+          "cachedResultName": "Evaluation_lead_worksheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1219804993,
+          "mode": "list",
+          "cachedResultName": "Sheet3",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit#gid=1219804993"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $('Code in Python2').item.json.lead_id }}",
+            "actual_channel_executed": "={{ $('Code in Python2').item.json.actual_channel_executed }}",
+            "actual_priority_tier": "={{ $('Code in Python2').item.json.actual_priority_tier }}",
+            "actual_execution_status": "={{ $('Code in Python2').item.json.actual_execution_status }}",
+            "actual_fallback_triggered": "={{ $('Code in Python2').item.json.actual_fallback_triggered }}",
+            "lead_id_consistent": "={{ $('Code in Python2').item.json.lead_id_consistent }}",
+            "channel_correct": "={{ $('Code in Python2').item.json.channel_correct }}",
+            "tier_correct": "={{ $('Code in Python2').item.json.tier_correct }}",
+            "execution_status_correct": "={{ $('Code in Python2').item.json.execution_status_correct }}",
+            "fallback_correct": "={{ $('Code in Python2').item.json.fallback_correct }}",
+            "no_action_on_hot_flag": "={{ $('Code in Python2').item.json.no_action_on_hot_flag }}",
+            "contact_channel_match": "={{ $('Code in Python2').item.json.contact_channel_match }}",
+            "pipeline_completed": "={{ $('Code in Python2').item.json.pipeline_completed }}",
+            "message_appropriate_for_tier": "={{ $json.output.message_appropriate_for_tier }}",
+            "objective_correct": "={{ $json.output.objective_correct }}",
+            "objective_matches_signals": "={{ $json.output.objective_matches_signals }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "textContent",
+              "displayName": "textContent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Caller Name/Phone Number/Email",
+              "displayName": "Caller Name/Phone Number/Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Scenario",
+              "displayName": "Scenario",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "expected_channel_executed",
+              "displayName": "expected_channel_executed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "expected_priority_tier",
+              "displayName": "expected_priority_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "expected_objective",
+              "displayName": "expected_objective",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "expected_execution_status",
+              "displayName": "expected_execution_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "expected_fallback_triggered",
+              "displayName": "expected_fallback_triggered",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "actual_channel_executed",
+              "displayName": "actual_channel_executed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actual_priority_tier",
+              "displayName": "actual_priority_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actual_objective",
+              "displayName": "actual_objective",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "actual_execution_status",
+              "displayName": "actual_execution_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actual_fallback_triggered",
+              "displayName": "actual_fallback_triggered",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actual_lead_score",
+              "displayName": "actual_lead_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "lead_id_consistent",
+              "displayName": "lead_id_consistent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel_correct",
+              "displayName": "channel_correct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tier_correct",
+              "displayName": "tier_correct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "objective_correct",
+              "displayName": "objective_correct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "execution_status_correct",
+              "displayName": "execution_status_correct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fallback_correct",
+              "displayName": "fallback_correct",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "no_action_on_hot_flag",
+              "displayName": "no_action_on_hot_flag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_channel_match",
+              "displayName": "contact_channel_match",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pipeline_completed",
+              "displayName": "pipeline_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_appropriate_for_tier",
+              "displayName": "message_appropriate_for_tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "objective_matches_signals",
+              "displayName": "objective_matches_signals",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "followup_sequence_logical",
+              "displayName": "followup_sequence_logical",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        240
+      ],
+      "id": "a811f6a1-1f99-4dbf-b39a-3be388e0cb0e",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LfwRqS1E46inJI8f",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Scenario: {{ $json[\"Scenario\"] }}\nExpected objective: {{ $json[\"expected_objective\"] }}\nPriority tier: {{ $json[\"actual_priority_tier\"] }}\nChannel executed: {{ $json[\"actual_channel_executed\"] }}\nMessage sent: \nTranscript: {{ $json[\"textContent\"] }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an evaluator for an AI sales pipeline. Your job is to assess the quality of outreach messages sent to leads.\n\nThe input is specified in the user prompt. Do not fabricate any input. Use the input and input ONLY to do your task. If something is missing, report back immediately rather than inventing new inputs.\n\n## Your task\nEvaluate the following and respond with a raw JSON object only — no markdown, no code fences:\n\n{\n  \"objective_correct\": true or false — does the message content match the expected objective?,\n  \"objective_reasoning\": \"one sentence explanation\",\n  \"message_appropriate_for_tier\": true or false — is the tone and content appropriate for the priority tier?,\n  \"message_reasoning\": \"one sentence explanation\",\n  \"objective_matches_signals\": true or false — does the message reflect what the lead actually said in the transcript?,\n  \"signals_reasoning\": \"one sentence explanation\"\n}\n"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        784,
+        320
+      ],
+      "id": "f99700cb-244c-49eb-8b35-8ba357492673",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        752,
+        528
+      ],
+      "id": "3e0e1515-6660-4e41-8629-379850ebda5c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "56mXzBeXBg1lZrwM",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"objective_correct\": {\n      \"type\": \"boolean\",\n      \"description\": \"Does the message content match the expected objective?\"\n    },\n    \"objective_reasoning\": {\n      \"type\": \"string\",\n      \"description\": \"One sentence explanation for objective_correct\"\n    },\n    \"message_appropriate_for_tier\": {\n      \"type\": \"boolean\",\n      \"description\": \"Is the tone and content appropriate for the priority tier?\"\n    },\n    \"message_reasoning\": {\n      \"type\": \"string\",\n      \"description\": \"One sentence explanation for message_appropriate_for_tier\"\n    },\n    \"objective_matches_signals\": {\n      \"type\": \"boolean\",\n      \"description\": \"Does the message reflect what the lead actually said in the transcript?\"\n    },\n    \"signals_reasoning\": {\n      \"type\": \"string\",\n      \"description\": \"One sentence explanation for objective_matches_signals\"\n    }\n  },\n  \"required\": [\n    \"objective_correct\",\n    \"objective_reasoning\",\n    \"message_appropriate_for_tier\",\n    \"message_reasoning\",\n    \"objective_matches_signals\",\n    \"signals_reasoning\"\n  ]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        560
+      ],
+      "id": "7124ed0c-9295-4679-bebb-7b0b167e1c0f",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "operation": "setMetrics",
+        "metric": "categorization",
+        "expectedAnswer": "=pass",
+        "actualAnswer": "={{ ($json.actual_priority_tier === 'hot' && $json.actual_channel_executed === 'no_action') ? 'fail' : 'pass' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.evaluation",
+      "typeVersion": 4.8,
+      "position": [
+        1728,
+        240
+      ],
+      "id": "6e2b8f65-b0d1-4704-9f44-69ce51079c57",
+      "name": "no_action_on_hot_flag"
+    },
+    {
+      "parameters": {
+        "operation": "setMetrics",
+        "metric": "customMetrics",
+        "metrics": {
+          "assignments": [
+            {
+              "id": "ac7b44c9-4e85-4ecc-88f8-f95138a55aa4",
+              "name": "channel_correct",
+              "value": "={{ $json.actual_channel_executed === $('When fetching a dataset row').item.json.expected_channel_executed ? 1 : 0 }}",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.evaluation",
+      "typeVersion": 4.8,
+      "position": [
+        1520,
+        240
+      ],
+      "id": "806b612a-847b-4b0f-9b11-820408fb2700",
+      "name": "channel_correct"
+    },
+    {
+      "parameters": {
+        "operation": "setMetrics",
+        "metric": "categorization",
+        "expectedAnswer": "pass",
+        "actualAnswer": "={{ $json.actual_execution_status === 'contact_missing' ? 'fail' : 'pass' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.evaluation",
+      "typeVersion": 4.8,
+      "position": [
+        1936,
+        240
+      ],
+      "id": "7eb956e5-44e1-45c5-a279-065e09228a11",
+      "name": "Evaluation1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE",
+          "mode": "list",
+          "cachedResultName": "Evaluation_lead_worksheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1219804993,
+          "mode": "list",
+          "cachedResultName": "Sheet3",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1AGL3R6Tja077yzXswkXWgfICmqKvYPc2erbE0VzUfJE/edit#gid=1219804993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "lead_id",
+              "lookupValue": "={{ $json.output.lead_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        80,
+        416
+      ],
+      "id": "dae7e829-1cba-4ec3-a8aa-c2b96dd60d14",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LfwRqS1E46inJI8f",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        320,
+        96
+      ],
+      "id": "554caba6-c703-4a7b-a5f1-e7ccfb91b4ad",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When fetching a dataset row": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Call 'Lead Project Idea'": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python2": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Call 'Lead Project Idea'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "channel_correct",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "channel_correct": {
+      "main": [
+        [
+          {
+            "node": "no_action_on_hot_flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "no_action_on_hot_flag": {
+      "main": [
+        [
+          {
+            "node": "Evaluation1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in Python2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a0792f83-0248-4737-9a44-671aa0d9e89d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e73562f49d572980e485cce90fd1964f528591278257b85bc9474e873167a0b9"
+  },
+  "id": "p6YzlZcN7dALimZK",
+  "tags": []
+}
