@@ -1,0 +1,613 @@
+{
+  "name": "franchisee_setup_flow",
+  "nodes": [
+    {
+      "parameters": {
+        "tableId": "franchisee_config",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "franchise_name",
+              "fieldValue": "={{ $json.body.franchise_name }}"
+            },
+            {
+              "fieldId": "location_id",
+              "fieldValue": "={{ $json.body.location_id }}"
+            },
+            {
+              "fieldId": "timezone",
+              "fieldValue": "={{ $json.body.timezone }}"
+            },
+            {
+              "fieldId": "max_followup_attempts",
+              "fieldValue": "={{ $json.body.max_followups_per_lead }}"
+            },
+            {
+              "fieldId": "allowed_channels",
+              "fieldValue": "={{ $json.body.allowed_channels }}"
+            },
+            {
+              "fieldId": "business_hours_start",
+              "fieldValue": "={{ $json.body.business_hours_start }}"
+            },
+            {
+              "fieldId": "business_hours_end",
+              "fieldValue": "={{ $json.body.business_hours_end }}"
+            },
+            {
+              "fieldId": "contact_days",
+              "fieldValue": "={{ $json.body.contact_days }}"
+            },
+            {
+              "fieldId": "min_hours_between_followups",
+              "fieldValue": "={{ $json.body.min_hours_between_followups }}"
+            },
+            {
+              "fieldId": "preferred_reply_name",
+              "fieldValue": "={{ $json.body.preferred_reply_name }}"
+            },
+            {
+              "fieldId": "preferred_message_tone",
+              "fieldValue": "={{ $json.body.preferred_message_tone }}"
+            },
+            {
+              "fieldId": "business_phone_number",
+              "fieldValue": "={{ $json.body.business_phone_number }}"
+            },
+            {
+              "fieldId": "crm_type",
+              "fieldValue": "={{ $json.body.crm_type }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        48,
+        -624
+      ],
+      "id": "f9492888-1de6-463d-b2ed-32a5b970c9bf",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "udLf8ikudVRjjves",
+          "name": "Supabase account 2"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook').item.json.body.business_email }}",
+        "subject": "Lead Intelligence system setup complete",
+        "message": "Congratulations on completing the lead intelligence system setup. Now, you can just relax and watch your agents work for you. We'll have your system live within 24 hours",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -48,
+        -64
+      ],
+      "id": "80774036-2369-47f9-b950-9c4c7457cada",
+      "name": "Send a message",
+      "webhookId": "a19b6a51-0b6a-49f4-a4ea-8cbce81cf846",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "j1DPCJT1Fsqlex98",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "franchisee_config",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "business_phone_number",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').item.json.body.business_phone_number }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "elevenlabs_agent_id",
+              "fieldValue": "={{ $json.agent_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -320
+      ],
+      "id": "da59ed37-82b9-471c-af6d-57518dffce74",
+      "name": "Update a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "udLf8ikudVRjjves",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.elevenlabs.io/v1/convai/agents/{{ $('Create agents').item.json.agent_id }}/add-to-phone-number\n",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone_number_id\": \"{{ $json.sid }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1552,
+        32
+      ],
+      "id": "a0e2194d-d485-4549-816b-080ebd7e93ed",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bnHsmBIMaAJURizP",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/convai/agents/create",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"{{ $('Webhook').item.json.body.franchise_name }}\",\n  \"conversation_config\": {\n    \"agent\": {\n      \"prompt\": {\n        \"prompt\": \"You are a helpful assistant for {{ $('Webhook').item.json.body.franchise_name}}...\",\n        \"llm\": \"gemini-2.5-flash\"\n      },\n      \"first_message\": \"Hi, this is {{ $('Webhook').item.json.body.preferred_reply_name }} from {{ $('Webhook').item.json.body.franchise_name }}. I'm calling about your recent enquiry. Do you have a moment to chat?\"\n    },\n    \"tts\": {\n      \"model_id\": \"eleven_flash_v2\",\n      \"voice_id\": \"cjVigY5qzO86Huf0OWal\"\n    },\n    \"turn\": {\n      \"turn_timeout\": 7\n    },\n    \"conversation\": {\n      \"max_duration_seconds\": 600\n    }\n  },\n  \"tags\": [\"{{ $('Webhook').item.json.body.location_id }}\"]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        288,
+        -320
+      ],
+      "id": "ff94caeb-6889-4d24-af33-6f79a54b1bdb",
+      "name": "Create agents",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bnHsmBIMaAJURizP",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $('Create Subaccount').item.json.sid }}:{{ $('Create Subaccount').item.json.auth_token }}@api.twilio.com/2010-04-01/Accounts/{{ $('Create Subaccount').item.json.sid }}/IncomingPhoneNumbers.json\n",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "PhoneNumber",
+              "value": "={{ $json.available_phone_numbers[0].phone_number }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1104,
+        96
+      ],
+      "id": "4dce5c25-ca24-493f-8112-b03a88fdcfe8",
+      "name": "Purchase new number"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "FriendlyName",
+              "value": "={{ $('Webhook').item.json.body.franchise_name}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        864,
+        -96
+      ],
+      "id": "ee15981b-bc9d-4da9-881a-8ae97c366ef2",
+      "name": "Create Subaccount",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "es1iumv6cAu3gzX7",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f9334398-51ff-4350-b084-4423bde0f6c0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -432,
+        -80
+      ],
+      "id": "7ca04481-4b37-406a-8e79-35b32a59e287",
+      "name": "Webhook",
+      "webhookId": "f9334398-51ff-4350-b084-4423bde0f6c0"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "714e3281-e1d6-419d-a04e-315cda47d88c",
+              "leftValue": "={{ $json.body.crm_type }}",
+              "rightValue": "none",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -272,
+        -64
+      ],
+      "id": "fec02226-c0ae-4b6e-8dd4-85eca2c361cf",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e8141edb-99fe-4efb-aa61-8bc9af35a79d",
+              "leftValue": "={{ $('Webhook').item.json.body.allowed_channels.includes('call') }}",
+              "rightValue": "\"call\"",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        112,
+        -64
+      ],
+      "id": "5ab5e385-bd3d-442b-936a-623bb419d356",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "559f2324-5441-4955-b5ac-fddd6639a282",
+              "leftValue": "={{ $('Webhook').item.json.body.allowed_channels.includes('sms') }}",
+              "rightValue": "\"sms\"",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        -48
+      ],
+      "id": "320d0914-3cee-4da9-a50a-9acd0fdd8ace",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "url": "=https://{{ $('Create Subaccount').item.json.sid }}:{{ $('Create Subaccount').item.json.auth_token }}@api.twilio.com/2010-04-01/Accounts/{{ $('Create Subaccount').item.json.sid }}/AvailablePhoneNumbers/US/Local.json?Limit=1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1072,
+        -96
+      ],
+      "id": "a06e478c-17d8-4512-9740-109e835bbd06",
+      "name": "Search for Available Numbers"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dafe65f5-516b-49ec-a2c9-d08cb807e553",
+              "leftValue": "={{ $('Webhook').item.json.body.allowed_channels.includes('call') }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1312,
+        96
+      ],
+      "id": "e6f63fa2-077c-4910-926e-0fc7dd80de4f",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "franchisee_config",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "business_phone_number",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').item.json.body.business_phone_number }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "twilio_number",
+              "fieldValue": "={{ $json.phone_number }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -64
+      ],
+      "id": "0abc936b-ac6c-404f-9553-76cb4edc9abd",
+      "name": "Update a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "udLf8ikudVRjjves",
+          "name": "Supabase account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Create a row": {
+      "main": [
+        []
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create agents": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purchase new number": {
+      "main": [
+        [
+          {
+            "node": "Update a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Subaccount": {
+      "main": [
+        [
+          {
+            "node": "Search for Available Numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Create agents",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Create Subaccount",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search for Available Numbers": {
+      "main": [
+        [
+          {
+            "node": "Purchase new number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "43959982-7299-41ea-80e5-2616ff3270a5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e73562f49d572980e485cce90fd1964f528591278257b85bc9474e873167a0b9"
+  },
+  "id": "yjVOjPTuiY8CnLDc",
+  "tags": []
+}
