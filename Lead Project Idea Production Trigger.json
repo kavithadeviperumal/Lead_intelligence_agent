@@ -1,0 +1,122 @@
+{
+  "name": "Lead Project Idea Production Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "email",
+        "emailDateRange": {},
+        "emailFlags": {
+          "seen": false
+        },
+        "customLabels": {},
+        "emailSearchFilters": {
+          "subject": "AI Call Recap"
+        },
+        "includeParts": [
+          "textContent"
+        ],
+        "limit": 100
+      },
+      "type": "n8n-nodes-imap-enhanced.imapEnhanced",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        -32
+      ],
+      "id": "1f4f0b0a-ba50-462d-8e8d-bfa04e5c26dd",
+      "name": "GetEmailsList email",
+      "credentials": {
+        "imapApi": {
+          "id": "5S90f5dydm0g9m3f",
+          "name": "IMAP Credentials account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        -32
+      ],
+      "id": "1306475d-36e9-4897-9241-43a9d60268ac",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "4CorILUM7dTEvLNh",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4CorILUM7dTEvLNh",
+          "cachedResultName": "Lead Project Idea"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        -32
+      ],
+      "id": "8956950d-2ff0-4d79-a9aa-d349bda7be58",
+      "name": "Call 'Lead Project Idea'"
+    }
+  ],
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {
+          "mode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "GetEmailsList email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetEmailsList email": {
+      "main": [
+        [
+          {
+            "node": "Call 'Lead Project Idea'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "dd97fe6d-ad69-4b3d-85aa-88d515fed2e5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e73562f49d572980e485cce90fd1964f528591278257b85bc9474e873167a0b9"
+  },
+  "id": "jO4NysO02UaIq8Gl",
+  "tags": []
+}
