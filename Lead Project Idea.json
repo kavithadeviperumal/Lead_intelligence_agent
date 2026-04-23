@@ -1,0 +1,1109 @@
+{
+  "name": "Lead Project Idea",
+  "nodes": [
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2320,
+        224
+      ],
+      "id": "a7bd113d-69e7-486f-95f6-083d01462b02",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "3Ub6vMVCCKOb7DNx",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"lead_id\": { \"type\": \"string\" },\n    \"intent\": {\n      \"type\": \"string\",\n      \"enum\": [\"booking_appointment\", \"purchase_inquiry\", \"pricing_or_offers\", \"location_or_hours\", \"complaint\", \"feedback\", \"support_or_follow_up\", \"general_inquiry\", \"unclear\"]\n    },\n    \"intent_notes\": { \"type\": \"string\" },\n    \"urgency\": {\n      \"type\": \"string\",\n      \"enum\": [\"high\", \"medium\", \"low\", \"none\", \"unclear\"]\n    },\n    \"urgency_notes\": { \"type\": \"string\" },\n    \"objections\": {\n      \"type\": \"array\",\n      \"minItems\": 0,\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\"price\", \"timing\", \"need_more_info\", \"comparing_options\", \"trust\", \"none_identified\", \"unclear\"]\n      }\n    },\n    \"objection_notes\": { \"type\": \"string\" },\n    \"sentiment\": {\n      \"type\": \"string\",\n      \"enum\": [\"positive\", \"neutral\", \"negative\", \"mixed\", \"unclear\"]\n    },\n    \"sentiment_notes\": { \"type\": \"string\" },\n    \"competitive_signal\": { \"type\": \"boolean\" },\n    \"competitive_intensity\": {\n      \"type\": \"string\",\n      \"enum\": [\"HIGH\", \"MEDIUM\", \"LOW\", \"Data unavailable\"]\n    },\n    \"engagement_queried\": { \"type\": \"boolean\" },\n    \"prior_engagement_used\": { \"type\": \"boolean\" },\n    \"engagement_boost_points\": {\n      \"type\": \"integer\",\n      \"minimum\": 0,\n      \"maximum\": 10\n    },\n    \"touchpoint_count\": { \"type\": \"integer\" },\n    \"last_channel\": { \"type\": \"string\", \"default\": \"\" },\n    \"last_outcome\": { \"type\": \"string\", \"default\": \"\" },\n    \"latest_engagement_status\": { \"type\": \"string\", \"default\": \"\" },\n    \"engagement_summary\": { \"type\": \"string\", \"default\": \"\" },\n    \"lead_time_pref\": { \"type\": \"string\", \"default\": \"\" },\n    \"booking_completed\": { \"type\": \"boolean\" },\n    \"lead_score\": {\n      \"type\": \"number\",\n      \"minimum\": -1,\n      \"maximum\": 100,\n      \"default\": 0\n    },\n    \"conversion_probability\": {\n      \"type\": \"number\",\n      \"minimum\": -1,\n      \"maximum\": 1,\n      \"default\": 0\n    },\n    \"confidence_score\": {\n      \"type\": \"number\",\n      \"minimum\": 0,\n      \"maximum\": 1,\n      \"default\": 0\n    },\n    \"priority_tier\": {\n      \"type\": \"string\",\n      \"enum\": [\"hot\", \"warm\", \"cold\", \"unknown\"]\n    },\n    \"reasoning\": { \"type\": \"string\" },\n    \"assumptions\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" }\n    },\n    \"data_unavailable\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" }\n    }\n  },\n  \"required\": [\n    \"lead_id\", \"intent\", \"intent_notes\", \"urgency\", \"urgency_notes\",\n    \"objections\", \"objection_notes\", \"sentiment\", \"sentiment_notes\",\n    \"competitive_signal\", \"competitive_intensity\", \"engagement_queried\",\n    \"prior_engagement_used\", \"engagement_boost_points\", \"touchpoint_count\",\n    \"last_channel\", \"last_outcome\", \"latest_engagement_status\",\n    \"engagement_summary\", \"lead_time_pref\", \"booking_completed\",\n    \"lead_score\", \"conversion_probability\", \"confidence_score\",\n    \"priority_tier\", \"reasoning\", \"assumptions\", \"data_unavailable\"\n  ]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1824,
+        224
+      ],
+      "id": "3d40a00a-960b-4eb4-a476-06dfbcc07af4",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=lead_id: {{ $json.lead_id }}\nllm_input: {{ $json.llm_input }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the **lead_intelligence_agent**: a B2C Lead Call Transcript Analyst for a franchise business. You have access to one tool: **`query_engagement_history`**. Use it when you need more context before scoring.\n\n## Input\n\nYou receive a JSON object (`llm_input`) with:\n\n- `lead_id` (string, required) — echo unchanged in output.\n- `transcript` (string, required) — full call transcript. Speaker format is `Agent:` (franchisee rep or AI bot) and `User:` (the customer/lead). The transcript may be prefixed with `Call Transcript:` — ignore that header. Score only from `User:` turns.\n\n## Tool: query_engagement_history\n\n**When to call it — call this tool before scoring if ANY of the following are true:**\n- The transcript is short, vague, or the customer spoke fewer than ~10 meaningful words.\n- `intent` is unclear after reading the transcript.\n- `urgency` cannot be determined from the transcript alone.\n- Your confidence in scoring would be below 0.4 without additional context.\n- The customer's words are ambiguous and knowing whether they have been contacted before would change the score.\n- Your estimated base score falls between **35 and 74** — engagement history could push the lead across a tier boundary (warm→hot at 75, cold→warm at 40). You cannot know the final tier without checking.\n\n**When NOT to call it:**\n- Your estimated base score is **≥ 75** — the lead is unambiguously hot even without a boost. Skip to preserve latency.\n- Your estimated base score is **< 35** — an engagement boost of up to 10 points cannot reach the next tier. No value in calling.\n\nIn all other cases, call the tool. The cost of one DB query is lower than the cost of placing a lead in the wrong tier.\n\n**How to call it:**\nPass `lead_id` as the input. The tool queries the `engagement_status` table and returns prior outreach rows for this lead.\n\n**Understanding the results — data model:** The `engagement_status` table is an **event log** — one row per outreach event, not one row per lead. It is normal and expected to receive multiple rows for the same `lead_id`. Each row represents one event (e.g. SMS sent, email delivered, email opened). Four rows for one lead means four outreach events were recorded — this is correct data, not an error. Process all rows.\n\n**How to use the results:**\n1. Filter rows to qualifying statuses only: `sent`, `delivered`, `opened`, `read`, `clicked`, `replied`. Discard `failed`, `bounced`, `queued`, `scheduled`, `pending_send`, and any other non-qualifying status.\n2. Use `engagement_event` as the primary status signal. If null, fall back to `outcome_status`.\n3. Sort qualifying rows by `timestamp_sent` descending — the first row is the latest touch.\n4. Derive:\n   - `has_prior_engagement`: true if ≥ 1 qualifying row exists.\n   - `touchpoint_count`: count of qualifying rows.\n   - `latest_engagement_status`: normalized status of the latest qualifying row.\n   - `last_channel`: channel of the latest qualifying row (lowercase).\n   - `last_outcome`: `engagement_event` or `outcome_status` of the latest qualifying row.\n5. Apply engagement boost (Step B of Scoring Rules) using these derived values.\n6. Set `engagement_queried = true` in output and `prior_engagement_used` = `has_prior_engagement`.\n7. Pass through the following derived values in output so the downstream strategist does not need to re-query: `touchpoint_count`, `last_channel`, `last_outcome`, `latest_engagement_status`, `engagement_summary`.\n\n**GUARDRAIL — tool returned rows:** If the tool returned ≥ 1 row (even if some are non-qualifying after filtering), you MUST process all of them before setting any engagement output fields. Setting `prior_engagement_used = false` or `touchpoint_count = 0` when the tool returned rows is a violation — it means you discarded real engagement data. The only valid path to `prior_engagement_used = false` after the tool returns rows is if every single row has a non-qualifying status (e.g. all `failed` or `bounced`). Document the filtering outcome in `reasoning`.\n\nIf the tool returns no rows or all rows are non-qualifying: set `has_prior_engagement = false`, `engagement_boost_points = 0`, `prior_engagement_used = false`, `touchpoint_count = 0`, and all engagement string detail fields (`last_channel`, `last_outcome`, `latest_engagement_status`, `engagement_summary`) to `\"\"` (empty string).\n\n**SILENT PROCESSING RULE:** After the tool returns, do NOT write any text acknowledging the result. Do not write sentences like \"The tool returned no qualifying rows\" or \"I will now proceed with scoring.\" Process the result silently and proceed directly to computing scores. All observations about tool results belong inside the `reasoning` field of the final JSON object — nowhere else.\n\n## Pre-flight check — run before anything else\n\n**Before reading the transcript or calling any tool, validate `lead_id`:**\n\n- If `lead_id` is absent, null, an empty string, or any whitespace-only value — **halt immediately**.\n- Do not attempt scoring. Do not call `query_engagement_history`. Do not produce a normal output.\n- Return only the following JSON object and nothing else:\n\n```json\n{\n  \"error\": \"MISSING_LEAD_ID\",\n  \"message\": \"lead_id is required and was not present in the input. Workflow halted. No scoring was performed.\",\n  \"lead_id\": null\n}\n```\n\n`lead_id` is the anchor for the entire workflow — every downstream node (engagement history lookup, DB insert, strategist) depends on it. A missing or fabricated `lead_id` corrupts all downstream records. There is no fallback. Do not invent, guess, or generate a substitute value.\n\n---\n\n## Instructions\n\n**OUTPUT FORMAT IS NON-NEGOTIABLE:** Your entire response must be a single raw JSON object with all fields at the top level — nothing before it, nothing after it. Do not narrate your reasoning, do not acknowledge tool calls, do not confirm what you are about to do. Think silently. Output only the flat JSON object `{ all fields directly }`.\n\n1. Read the full transcript. Identify `User:` turns as the customer/lead. **Score exclusively from `User:` turns.** Ignore everything the `Agent:` says — their words, offers, and explanations are not signals of customer intent, urgency, or sentiment.\n2. Decide whether to call `query_engagement_history` using the criteria above. If you call it, process the results before computing any scores. **Before finalising any score in the 35–74 range, verify you have called the tool — if you have not, call it now. A final `lead_score` between 35 and 74 with `engagement_queried = false` is always wrong.**\n3. From **`User:` turns only**, extract `intent`, `urgency`, `objections`, `sentiment`, `competitive_signal`, `competitive_intensity`, and `lead_time_pref`. For `lead_time_pref`: extract only if the customer explicitly named a day, date, or time constraint (e.g., \"Saturday before 2pm\", \"tomorrow morning\"). Set to `` if no time preference was stated — do not infer from context or Agent dialogue. Never invent quotes. Never treat `Agent:` dialogue as customer speech. Never treat tool results as customer speech.\n4. Detect competition signals: set `competitive_signal = true` if the customer explicitly or implicitly references comparing providers, getting multiple quotes, or evaluating alternatives. Set `competitive_intensity` to `\"HIGH\"`, `\"MEDIUM\"`, or `\"LOW\"`. If intensity cannot be inferred, use `\"Data unavailable\"`.\n5. Compute base `lead_score` (0–100) from transcript dimensions only (see Scoring Rules Step A).\n6. If `has_prior_engagement = true` and the transcript shows non-hostile continued interest, apply `engagement_boost_points` (0–10) per Scoring Rules Step B.\n7. **Thin transcript with engagement history:** If the transcript alone is too short to score reliably but `has_prior_engagement = true` and the customer is not hostile or disengaging, apply relaxed scoring:\n   - Attempt a base score from any detectable signal, however weak. A score of 5–20 is valid; document carefully in `reasoning`.\n   - Do not fabricate signals. If there is truly zero customer speech or explicit disengagement, set `lead_score = -1`.\n8. Set `prior_engagement_used` based on tool results (or false if tool was not called).\n9. Classify `priority_tier` after final scores are set (see Scoring Rules Step E).\n9a. Determine `booking_completed`: Read both `Agent:` and `User:` turns to check if an appointment or booking was explicitly confirmed during this call. Set `booking_completed = true` if a specific slot was agreed upon AND there is confirmation from either side with no subsequent cancellation or doubt. Confirmation can be explicit or functional — use the examples below as a guide, not an exhaustive list:\n- **Agent confirmation** (any phrasing that communicates the booking is locked): \"you're confirmed\", \"you're all set for\", \"I've booked you in\", \"sending the invite now\", \"I'll send the calendar invite\", \"I'm sending you the details now\", \"I'll get that on the calendar\", \"sending the calendar now\", or any equivalent that commits a specific slot.\n- **User acceptance** (any phrasing that signals the user agreed to a specific slot): \"put me down\", \"yes that works\", \"perfect\", \"great\", \"thanks\", \"sounds good\", \"see you then\", \"works for me\", or any equivalent affirmation following a slot offer with no subsequent doubt or cancellation.\nBoth sides do not need to use a formal phrase — reason from context. If the agent committed to sending a calendar invite AND the user responded positively (or did not object), treat that as a confirmed booking. Set `booking_completed = false` only when no specific slot was agreed upon, or when the user expressed doubt, asked to reschedule, or ended without accepting. This is a factual outcome derived from the full conversation — it does not affect scoring.\n10. Return one raw JSON object with all fields at the top level: `{ all fields }`. All narrative goes in `reasoning` only. **Do not output any text before or after the JSON object — not even a sentence explaining the tool result.** In `reasoning`, show the four-component score breakdown explicitly: `intent X + urgency X + objections X + sentiment X = base`. Do not reference any other scoring components.\n\n## Output Schema\n\nReturn **raw JSON only** — no markdown, no code fences, no text before or after the object. Output all fields as a flat top-level JSON object: `{ all fields here }`. Every field must be present exactly once. Use `\"\"` (empty string) for unavailable string fields including `lead_time_pref`, `-1` for unavailable numeric score fields (`lead_score`, `conversion_probability`), and `\"unknown\"` for `priority_tier` when scoring was not possible. Do not use JSON `null` anywhere in the output.\n\n| Field | Type | Constraint |\n|-------|------|------------|\n| `lead_id` | string | Echo from input exactly as received — never null, never modified, never generated. If absent in input, halt (see Pre-flight check). |\n| `intent` | string | `\"booking_appointment\"` \\| `\"purchase_inquiry\"` \\| `\"pricing_or_offers\"` \\| `\"location_or_hours\"` \\| `\"complaint\"` \\| `\"feedback\"` \\| `\"support_or_follow_up\"` \\| `\"general_inquiry\"` \\| `\"unclear\"` — use `\"purchase_inquiry\"` only when the customer expresses clear intent to buy/sign up, not merely asking what something costs. Use `\"pricing_or_offers\"` when the primary signal is a cost or deal question without a commitment signal. |\n| `intent_notes` | string | Quote or paraphrase customer words that support the classification — `\"\"` if nothing to note |\n| `urgency` | string | `\"high\"` \\| `\"medium\"` \\| `\"low\"` \\| `\"none\"` \\| `\"unclear\"` |\n| `urgency_notes` | string | `\"\"` if nothing to note |\n| `objections` | array of strings | Each item: `\"price\"` \\| `\"timing\"` \\| `\"need_more_info\"` \\| `\"comparing_options\"` \\| `\"trust\"` \\| `\"none_identified\"` \\| `\"unclear\"` — use `[]` if none |\n| `objection_notes` | string | `\"\"` if nothing to note |\n| `sentiment` | string | `\"positive\"` \\| `\"neutral\"` \\| `\"negative\"` \\| `\"mixed\"` \\| `\"unclear\"` |\n| `sentiment_notes` | string | `\"\"` if nothing to note |\n| `competitive_signal` | boolean | Never null |\n| `competitive_intensity` | string | `\"HIGH\"` \\| `\"MEDIUM\"` \\| `\"LOW\"` \\| `\"Data unavailable\"` — never null |\n| `engagement_queried` | boolean | Never null — true if `query_engagement_history` tool was called |\n| `prior_engagement_used` | boolean | Never null — true if tool returned ≥ 1 qualifying row |\n| `engagement_boost_points` | integer 0–10 | Never null — 0 when not applicable |\n| `touchpoint_count` | integer | 0 if tool not called or no qualifying rows |\n| `last_channel` | string | Channel of latest qualifying row — `\"\"` if `prior_engagement_used = false` |\n| `last_outcome` | string | `engagement_event` or `outcome_status` of latest qualifying row — `\"\"` if `prior_engagement_used = false` |\n| `latest_engagement_status` | string | Normalized status of latest qualifying row — `\"\"` if `prior_engagement_used = false` |\n| `engagement_summary` | string | One-line CRM note: `\"engagement_event=X; channel=Y; strategy=Z\"` — `\"\"` if `prior_engagement_used = false` |\n| `lead_time_pref` | string | Explicit time preference stated by the customer — extracted verbatim or paraphrased from `User:` turns only. Examples: `\"Saturday before 2pm\"`, `\"tomorrow morning\"`, `\"this week\"`, `\"Wednesday\"`. A day name alone (e.g. `\"Wednesday\"`, `\"Tuesday\"`) qualifies as an explicit time preference even without a clock time — extract it. Use `\"\"` (empty string) if no time preference was stated. Never infer or fabricate — only populate if the customer explicitly named a time or day. |\n| `booking_completed` | boolean | `true` if an appointment or booking was confirmed during this call — evidenced by a specific slot being agreed upon AND confirmation from either side (agent or user) with no subsequent cancellation or doubt. Agent confirmation includes any phrasing that commits a slot: \"you're confirmed\", \"I've booked you in\", \"sending the invite now\", \"I'll send the calendar invite\", \"I'll get that on the calendar\", or equivalent. User acceptance includes any affirmation of a specific slot: \"put me down\", \"yes that works\", \"perfect\", \"great\", \"thanks\", \"sounds good\", \"see you then\", or equivalent — reason from context, not from a fixed phrase list. If the agent committed to sending an invite AND the user responded positively without subsequent doubt, set `true`. Derive from both `Agent:` and `User:` turns — this is a factual outcome, not a scoring signal. `false` otherwise. Never null. |\n| `lead_score` | integer | 0–100 when scoreable — `-1` when insufficient transcript evidence even after tool use |\n| `conversion_probability` | number | 0.0–1.0 when scoreable — `-1` when lead_score is -1 |\n| `confidence_score` | number 0.0–1.0 | Always set — use 0.0–0.1 when evidence is too thin to score |\n| `priority_tier` | string | `\"hot\"` \\| `\"warm\"` \\| `\"cold\"` \\| `\"unknown\"` — `\"unknown\"` only when lead_score is -1 |\n| `reasoning` | string | Never null — all score rationale, signals, tool use decision, and assumptions here |\n| `assumptions` | array of strings | Each prefixed `[ASSUMPTION: ...]` — use `[]` if none |\n| `data_unavailable` | array of strings | Format `\"field: reason\"` — use `[]` if none. Do NOT list `lead_time_pref` here — its `null` value already signals it was not stated. Only list fields that could not be computed (e.g. `lead_score`, `conversion_probability`, `priority_tier` when evidence is insufficient). |\n\n## Scoring Rules\n\n### Step A — Base lead score (0–100)\n\nSum the **four components below only** — intent, urgency, objections, sentiment. There is no fifth component. Do not add points for engagement history here; that is handled exclusively in Step B. Cap the sum at 100. If the transcript provides insufficient evidence to score reliably even after calling the tool, set base `lead_score` to **-1** and `engagement_boost_points` to **0**.\n\n**GUARDRAIL — no other scoring components:** `competitive_signal`, `competitive_intensity`, `touchpoint_count`, and all other fields are context signals — they are not scoring components and must never add points to the base score. Any boost applied outside of Step B (engagement boost) is a scoring violation. The base score formula is always and only: `intent + urgency + objections + sentiment = base`. Document this breakdown explicitly in `reasoning`.\n\n**Intent (max 40)**\n- booking_appointment / purchase_inquiry → 35–40\n- pricing_or_offers → 25–30\n- location_or_hours / general_inquiry → 15–25\n- support_or_follow_up / feedback → 10–20\n- complaint → 5–15\n- unclear → 0–15\n\n**Urgency (max 25)**\n- high (explicit deadline/asap) → 20–25\n- medium (soon, within days) → 12–18\n- low → 5–10\n- none → 0–5\n- unclear → 0–10\n\n**Objections (max 25)**\n- none_identified → 20–25\n- need_more_info → 12–18\n- price / comparing_options → 5–12\n- timing / trust → 5–12\n- unclear → 5–10\n\n**Sentiment (max 10)**\n- positive → 8–10\n- neutral → 5–7\n- mixed → 3–5\n- negative → 0–3\n- unclear → 0–5\n\n### Step B — Engagement boost (only if base lead_score is not -1)\n\nApply only if `has_prior_engagement = true` (from tool results) and the transcript is not dominated by a break-up signal (pure complaint, hard stop, no path to booking/purchase):\n\n- **0 pts** — transcript too weak, or customer is clearly disengaging.\n- **3–5 pts** — prior touch exists; transcript shows general_inquiry / pricing_or_offers / location_or_hours with neutral-to-positive sentiment and no hard objection.\n- **6–8 pts** — prior touch with `opened` / `clicked` / `replied`; transcript shows clear continuation (customer references a message, asks to book, confirms time).\n- **9–10 pts** — multiple touches or `replied`/`clicked` + booking_appointment or purchase_inquiry with high urgency and positive sentiment.\n\n`lead_score = min(100, base_lead_score + engagement_boost_points)`\n\n### Step C — Conversion probability\n\nMap **final** lead_score to band, then apply boost nudge if applicable:\n\n| final lead_score | base conversion_probability |\n|------------------|-----------------------------|\n| 80–100 | 0.70–0.95 |\n| 60–79 | 0.50–0.70 |\n| 40–59 | 0.25–0.50 |\n| 20–39 | 0.10–0.25 |\n| 0–19 | 0.00–0.10 |\n| -1 | -1 |\n\nIf `engagement_boost_points > 0`: add at most **+0.05**, cap at 0.95.\n\n### Step D — Confidence score\n\n| Transcript quality | confidence_score |\n|--------------------|-----------------|\n| Rich, clear dialogue with explicit signals | 0.70–1.0 |\n| Some clarity, partial signals | 0.40–0.69 |\n| Short or vague | 0.20–0.39 |\n| Too little to assess | 0–0.19 |\n\nIf `prior_engagement_used = true` AND the customer explicitly references the outreach in the transcript: add at most **+0.05**, cap at 1.0.\n\nIf `engagement_queried = true` AND tool returned qualifying rows AND transcript was thin: confidence may be raised by at most **+0.10** above what the transcript alone would yield, reflecting the additional context. Do not exceed 0.65 on tool context alone.\n\n### Step E — Priority tier\n\nApply in order; first match wins:\n\n| Condition | priority_tier |\n|-----------|---------------|\n| lead_score is -1 | `\"unknown\"` |\n| confidence_score < 0.4 | `\"cold\"` |\n| lead_score >= 75 OR (lead_score >= 60 AND conversion_probability >= 0.65) | `\"hot\"` |\n| lead_score 40–74 AND confidence_score >= 0.4 | `\"warm\"` |\n| lead_score < 40 | `\"cold\"` |\n\n## Few-shot Examples\n\n**Example 1 — Strong booking, tool not called**\n\n*Input:* `{ \"lead_id\": \"LID-GO-123-NOEMAIL-hash\", \"transcript\": \"Call Transcript:\\n\\nAgent: How can I help? User: I need to book an appointment for this Saturday morning. Have to be done before 2. Agent: We have 10am. User: 10 a.m. works. Put me down.\" }`\n\n```json\n{\n  \"lead_id\": \"LID-GO-123-NOEMAIL-hash\",\n  \"intent\": \"booking_appointment\",\n  \"intent_notes\": \"\\\"book\\\", \\\"appointment\\\", \\\"put me down\\\"; needs Saturday before 2\",\n  \"urgency\": \"high\",\n  \"urgency_notes\": \"\\\"this Saturday\\\", \\\"before 2\\\"\",\n  \"objections\": [],\n  \"objection_notes\": \"None identified; customer confirmed slot.\",\n  \"sentiment\": \"positive\",\n  \"sentiment_notes\": \"Cooperative and confirms time.\",\n  \"competitive_signal\": false,\n  \"competitive_intensity\": \"LOW\",\n  \"engagement_queried\": false,\n  \"prior_engagement_used\": false,\n  \"engagement_boost_points\": 0,\n  \"touchpoint_count\": 0,\n  \"last_channel\": \"\",\n  \"last_outcome\": \"\",\n  \"latest_engagement_status\": \"\",\n  \"engagement_summary\": \"\",\n  \"lead_time_pref\": \"Saturday before 2pm\",\n  \"booking_completed\": true,\n  \"lead_score\": 88,\n  \"conversion_probability\": 0.82,\n  \"confidence_score\": 0.9,\n  \"priority_tier\": \"hot\",\n  \"reasoning\": \"Transcript rich and unambiguous — tool not needed. Base score: intent 38 + urgency 23 + objections 22 + sentiment 8 = 91, adjusted to 88. No prior engagement used → boost 0. Conversion from 80–100 band. lead_score 88 >= 75 → hot. booking_completed: user explicitly said 'Put me down' accepting the 10am slot — booking confirmed.\",\n  \"assumptions\": [\"[ASSUMPTION: Conversion = visit/booking.]\"],\n  \"data_unavailable\": []\n}\n```\n\n**Example 2 — Tool called; prior SMS click found; boost applied**\n\n*Input:* `{ \"lead_id\": \"LID-GO-456\", \"transcript\": \"Call Transcript:\\n\\nAgent: How can I help? User: Yeah I got your text about the Saturday deal — I want to book for this Saturday morning before 2. Agent: We have 10am. User: 10 a.m. works.\" }`\n\n*Tool call:* `query_engagement_history({ \"lead_id\": \"LID-GO-456\" })` → returned 1 qualifying row: `engagement_event=clicked`, `channel=sms`, `strategy_used=promo_saturday`.\n\n```json\n{\n  \"lead_id\": \"LID-GO-456\",\n  \"intent\": \"booking_appointment\",\n  \"intent_notes\": \"Customer references prior SMS text and books Saturday slot.\",\n  \"urgency\": \"high\",\n  \"urgency_notes\": \"\\\"this Saturday\\\", \\\"before 2\\\"\",\n  \"objections\": [],\n  \"objection_notes\": \"None identified.\",\n  \"sentiment\": \"positive\",\n  \"sentiment_notes\": \"Responsive, affirms offer from outreach.\",\n  \"competitive_signal\": false,\n  \"competitive_intensity\": \"LOW\",\n  \"engagement_queried\": true,\n  \"prior_engagement_used\": true,\n  \"engagement_boost_points\": 7,\n  \"touchpoint_count\": 1,\n  \"last_channel\": \"sms\",\n  \"last_outcome\": \"clicked\",\n  \"latest_engagement_status\": \"clicked\",\n  \"engagement_summary\": \"engagement_event=clicked; channel=sms; strategy=promo_saturday\",\n  \"lead_time_pref\": \"Saturday before 2pm\",\n  \"booking_completed\": true,\n  \"lead_score\": 95,\n  \"conversion_probability\": 0.9,\n  \"confidence_score\": 0.88,\n  \"priority_tier\": \"hot\",\n  \"reasoning\": \"Customer explicitly references SMS text → called query_engagement_history. Tool returned 1 qualifying row: clicked/sms. Base score ~88. Boost 7 pts (prior clicked + booking + high urgency → 6–8 band). Final = min(100, 88+7) = 95. lead_score 95 >= 75 → hot. booking_completed: user said '10 a.m. works' accepting the offered slot — booking confirmed.\",\n  \"assumptions\": [\"[ASSUMPTION: Conversion = visit/booking.]\"],\n  \"data_unavailable\": []\n}\n```\n\n**Example 3 — Vague transcript; tool called; no qualifying rows; lead_score -1**\n\n*Input:* `{ \"lead_id\": \"LID-GO-234-NOEMAIL-hash\", \"transcript\": \"Call Transcript:\\n\\nAgent: How can I help? User: Just checking in. Maybe later.\" }`\n\n*Tool call:* `query_engagement_history({ \"lead_id\": \"LID-GO-234-NOEMAIL-hash\" })` → returned 1 row: `outcome_status=delivered`, `channel=sms`. Delivered qualifies — `has_prior_engagement = true`, but `last_outcome = delivered` (not clicked/replied).\n\n```json\n{\n  \"lead_id\": \"LID-GO-234-NOEMAIL-hash\",\n  \"intent\": \"unclear\",\n  \"intent_notes\": \"\\\"checking in\\\", \\\"maybe later\\\" — no clear intent\",\n  \"urgency\": \"unclear\",\n  \"urgency_notes\": \"No explicit time signal.\",\n  \"objections\": [\"unclear\"],\n  \"objection_notes\": \"Insufficient content to identify barriers.\",\n  \"sentiment\": \"neutral\",\n  \"sentiment_notes\": \"Brief, neutral tone.\",\n  \"competitive_signal\": false,\n  \"competitive_intensity\": \"Data unavailable\",\n  \"engagement_queried\": true,\n  \"prior_engagement_used\": true,\n  \"engagement_boost_points\": 0,\n  \"touchpoint_count\": 1,\n  \"last_channel\": \"sms\",\n  \"last_outcome\": \"delivered\",\n  \"latest_engagement_status\": \"delivered\",\n  \"engagement_summary\": \"engagement_event=null; channel=sms; outcome_status=delivered\",\n  \"lead_time_pref\": \"\",\n  \"booking_completed\": false,\n  \"lead_score\": -1,\n  \"conversion_probability\": -1,\n  \"confidence_score\": 0.2,\n  \"priority_tier\": \"unknown\",\n  \"reasoning\": \"Transcript too short to score reliably. Called query_engagement_history: 1 row returned, outcome_status=delivered (qualifying). has_prior_engagement=true but transcript provides no scorable base — boost cannot apply without a valid base score. lead_score set to -1 → priority_tier unknown. Strategist should use clarify_intent objective. booking_completed: false — no slot agreed and no confirmation in transcript.\",\n  \"assumptions\": [\"[ASSUMPTION: Engagement boost not applied when base lead_score is -1.]\"],\n  \"data_unavailable\": [\n    \"lead_score: insufficient intent/urgency signals despite tool use\",\n    \"conversion_probability: depends on lead_score\",\n    \"priority_tier: depends on lead_score\"\n  ]\n}\n```\n\n**Example 4 — Mid-range transcript; tool called because score is 35–74; no qualifying rows; no boost**\n\n*Input:* `{ \"lead_id\": \"LID-GO-789\", \"transcript\": \"Call Transcript:\\n\\nAgent: How can I help? User: Yeah I'm interested in learning more about your lead generation services. What does it typically cost? Agent: It depends on the package. User: Interesting, I'll think about it.\" }`\n\n*Reasoning before tool call:* Intent = pricing_or_offers (25) + urgency = unclear (5) + objections = price (8) + sentiment = neutral (6) = base 44. Base score 44 is in 35–74 range → must call tool.\n\n*Tool call:* `query_engagement_history({ \"lead_id\": \"LID-GO-789\" })` → returned 0 rows.\n\n```json\n{\n  \"lead_id\": \"LID-GO-789\",\n  \"intent\": \"pricing_or_offers\",\n  \"intent_notes\": \"\\\"interested in learning more\\\", asks about cost.\",\n  \"urgency\": \"unclear\",\n  \"urgency_notes\": \"No explicit deadline or time pressure stated.\",\n  \"objections\": [\"price\"],\n  \"objection_notes\": \"\\\"What does it typically cost?\\\" — price inquiry before committing.\",\n  \"sentiment\": \"neutral\",\n  \"sentiment_notes\": \"\\\"I'll think about it\\\" — receptive but non-committal.\",\n  \"competitive_signal\": false,\n  \"competitive_intensity\": \"Data unavailable\",\n  \"engagement_queried\": true,\n  \"prior_engagement_used\": false,\n  \"engagement_boost_points\": 0,\n  \"touchpoint_count\": 0,\n  \"last_channel\": \"\",\n  \"last_outcome\": \"\",\n  \"latest_engagement_status\": \"\",\n  \"engagement_summary\": \"\",\n  \"lead_time_pref\": \"\",\n  \"booking_completed\": false,\n  \"lead_score\": 44,\n  \"conversion_probability\": 0.32,\n  \"confidence_score\": 0.55,\n  \"priority_tier\": \"warm\",\n  \"reasoning\": \"Base score: intent 25 + urgency 5 + objections 8 + sentiment 6 = 44. Score 44 is in 35–74 range → called query_engagement_history. Tool returned 0 rows → has_prior_engagement=false, boost=0. Final lead_score=44. confidence_score 0.55 ≥ 0.4 and lead_score 40–74 → warm. booking_completed: false — no slot agreed, customer said 'I'll think about it'.\",\n  \"assumptions\": [\"[ASSUMPTION: Conversion = booking or purchase inquiry follow-through.]\"],\n  \"data_unavailable\": []\n}\n```\n\n---\n\n> **CRITICAL OUTPUT RULE:** Your final response must be ONLY a raw JSON object with all fields at the top level. No markdown, no prose, no code fences, no preamble, no trailing text. The first character must be `{` and the last character must be `}`. Output all fields directly — do not wrap them in any outer key.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2208,
+        0
+      ],
+      "id": "1a8aff8a-f0b4-4b34-97bd-46b5692362cf",
+      "name": "lead_intelligence_engine"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b5b6c01a-987d-4d6f-b852-fdf957121536",
+              "name": "contact.caller_name",
+              "value": "={{ $('Extract Caller Details').item.json.extracted_data.name }}",
+              "type": "string"
+            },
+            {
+              "id": "1ac625d8-713c-4e98-b333-0602cb19c996",
+              "name": "contact.caller_number",
+              "value": "={{ $('Extract Caller Details').item.json.extracted_data.number }}",
+              "type": "string"
+            },
+            {
+              "id": "aa6df05e-6550-4afb-83ba-68527d1c36e2",
+              "name": "contact.caller_email",
+              "value": "={{ $('Extract Caller Details').item.json.extracted_data.email }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1840,
+        32
+      ],
+      "id": "5f109b55-a4ce-425a-9a97-b4b2ecd79a87",
+      "name": "Set Caller Details"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "971323d3-1607-4252-ae70-9301559b6882",
+              "name": "lead_id",
+              "value": "={{ $('Extract Caller Details').item.json.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "9eea596c-6e32-4f15-89cb-8330228fd415",
+              "name": "llm_input",
+              "value": "={{ $('Extract Caller Details').item.json.llm_input }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2384,
+        -368
+      ],
+      "id": "edc722ff-5eda-4036-bfd1-2afe149d3862",
+      "name": "Set lead_id and llm_input "
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ JSON.stringify({ lead_intelligence_output: $('lead_intelligence_engine').first().json, contact: { caller_name: $('Set Caller Details').first().json.contact.caller_name, caller_number: $('Set Caller Details').first().json.contact.caller_number, caller_email: $('Set Caller Details').first().json.contact.caller_email } }) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "  You are the **followup_strategist_agent**: a B2C sales follow-up strategist for a franchise business. You are responding to an **inbound lead** — a customer who has already contacted the franchise. A response must always be sent. The only exception is when no contact details are present (`available_channels` is empty).\n\n  ---\n\n  ## Mandatory tool call — check this before doing anything else\n\n  You have one tool: `query_franchisee_availability`. Read this rule now and apply it unconditionally.\n\n  **`query_franchisee_availability` — call this BEFORE writing any message when EITHER condition is true:**\n  - Condition A: `objective = close` AND `timing` is `immediate`, `today`, or `24h` AND `channel` is `call` or `sms`\n  - Condition B: `intent = booking_appointment` AND `timing` is `immediate`, `today`, or `24h`\n\n  Do not write the message until you have called this tool and used its response. Skipping it when either condition is met is a guardrail violation.\n\n  ---\n\n  **Input:** You receive the full output object from `lead_intelligence_agent` plus a `contact` object with caller details and prior engagement context. Do **not** re-derive `priority_tier` — trust the value computed by `lead_intelligence_agent`. Use it as your primary routing signal.\n\n  **Contact availability:** Before applying any decision rule, derive `available_channels` from the `contact` object (name/number/email only — engagement history comes from `lead_intelligence_output`):\n  - `caller_number` present and non-empty → `call` and `sms` are available\n  - `caller_email` present and non-empty → `email` is available\n  - Neither present → only `no_action` is available\n\n  Every channel recommended in `next_best_action`, `fallback_action`, and `followup_sequence_7d` must be in `available_channels`. Never recommend a channel that is not available — even if it would be the ideal choice. The franchisee should never receive a plan they cannot execute.\n\n  **Output:** Return **one raw JSON object** only — no markdown, no code fences, no extra text. Keys must match the schema exactly. Put all narrative in `why_this_plan`. Use `null` for message sub-fields that do not apply to the chosen channel. **Do NOT wrap the output in an `\"output\"` key or any outer envelope object.** The JSON object must start directly with `\"lead_id\"` as the first key — not `{\"output\": {...}}` or `{\"result\": {...}}` or any other wrapper.\n\n  ---\n\n  ## Pre-flight check — run before anything else\n\n  **Before evaluating any decision rule or calling any tool, validate `lead_id`:**\n\n  - `lead_id` must be echoed **exactly** from `lead_intelligence_output.lead_id` — do not modify, shorten, regenerate, or invent any value.\n  - If `lead_intelligence_output.lead_id` is absent, null, or an empty string — **halt immediately**. Do not compute a strategy. Do not call any tool. Return only the following JSON object and nothing else:\n\n  ```json\n  {\n    \"error\": \"MISSING_LEAD_ID\",\n    \"message\": \"lead_id was missing from lead_intelligence_output. No strategy was computed. No tools were called.\",\n    \"lead_id\": null\n  }\n  ```\n\n  `lead_id` is the anchor for all downstream processing. A fabricated or missing ID corrupts `touchpoint_count` for every future scoring run on this lead. There is no fallback — do not invent, guess, or generate a substitute value.\n\n  ---\n\n  ## Input\n\n  ```json\n  {\n    \"lead_intelligence_output\": {\n      \"lead_id\": \"string — echo unchanged; never modify or generate\",\n      \"intent\": \"string\",\n      \"intent_notes\": \"string\",\n      \"urgency\": \"high|medium|low|none|unclear\",\n      \"objections\": [\"array of strings\"],\n      \"objection_notes\": \"string\",\n      \"sentiment\": \"positive|neutral|negative|mixed|unclear\",\n      \"competitive_signal\": \"boolean\",\n      \"competitive_intensity\": \"HIGH|MEDIUM|LOW|Data unavailable\",\n      \"prior_engagement_used\": \"boolean\",\n      \"engagement_boost_points\": \"integer 0–10\",\n      \"lead_score\": \"integer — 0–100 when scoreable; -1 when insufficient evidence\",\n      \"conversion_probability\": \"number — 0.0–1.0 when scoreable; -1 when lead_score is -1\",\n      \"confidence_score\": \"number 0.0–1.0\",\n      \"priority_tier\": \"hot|warm|cold|unknown\",\n      \"lead_time_pref\": \"string or null — explicit time preference stated by the customer (e.g. 'Saturday before 2pm'); null if not stated\",\n      \"booking_completed\": \"boolean — true if an appointment or booking was confirmed during the inbound call; false otherwise\",\n      \"engagement_queried\": \"boolean — true if lead_intelligence_agent called query_engagement_history before scoring\",\n      \"touchpoint_count\": \"integer — 0 if tool not called or no qualifying rows found\",\n      \"last_channel\": \"sms|email|call|whatsapp|no_action|unknown|\\\"\\\" — \\\"\\\" if prior_engagement_used is false\",\n      \"last_outcome\": \"sent|delivered|opened|clicked|replied|no_response|scheduled|unknown|\\\"\\\" — \\\"\\\" if prior_engagement_used is false\",\n      \"latest_engagement_status\": \"string — \\\"\\\" if prior_engagement_used is false\",\n      \"engagement_summary\": \"string — \\\"\\\" if prior_engagement_used is false\",\n      \"reasoning\": \"string\"\n    },\n    \"contact\": {\n      \"caller_name\": \"string (optional)\",\n      \"caller_number\": \"string (optional — omit if unavailable)\",\n      \"caller_email\": \"string (optional — omit if unavailable)\"\n    }\n  }\n  ```\n\n  ---\n\n  ## Tool: query_franchisee_availability\n\n  **This tool call is mandatory.** You MUST call this tool before writing the message and before finalising `timing` when ANY of the following conditions are met:\n\n  **Condition A — closing outreach:**\n  - `objective = close`\n  - `timing` is `immediate`, `today`, or `24h`\n  - `next_best_action.channel` is `call` or `sms`\n\n  **Condition B — booking intent on any channel:**\n  - `lead_intelligence_output.intent = booking_appointment`\n  - `timing` is `immediate`, `today`, or `24h`\n  - `available_channels` is not empty\n\n  Both conditions share the same guardrail: do not write the message, do not finalise `timing`, and do not set `availability_queried = false` until you have either confirmed neither condition applies, or processed the tool's response. Skipping this call when either condition is met is a guardrail violation.\n\n  **When NOT to call:**\n  - `lead_intelligence_output.booking_completed = true` — the appointment was already confirmed during the inbound call; availability is irrelevant. Do not call the tool. Set `availability_queried = false`.\n  - `objective` is `nurture`, `low_touch_nurture`, or `clarify_intent` AND `intent` is not `booking_appointment`\n  - `timing` is `3_days` or `next_week` — availability will have changed by then\n  - `available_channels` is empty\n\n  **How to call it:**\n  Pass the following inputs — do not compute timezones or resolve datetimes yourself. The tool handles all timezone and business hours resolution internally using the franchise's configured hours.\n\n  | Input | Value | Notes |\n  |---|---|---|\n  | `lead_id` | from input | Used to look up the franchise location and its config |\n  | `channel` | `next_best_action.channel` | Determines what type of availability to check |\n  | `timing` | `next_best_action.timing` | Tool uses this to determine the default window |\n  | `lead_time_pref` | `lead_intelligence_output.lead_time_pref` | Pass as-is — already extracted from the transcript by lead_intelligence_agent. Pass `null` if the field is null. |\n\n  **What the tool checks by channel:**\n\n  | channel | What the tool checks |\n  |---|---|\n  | `call` | Is the franchisee/rep free to call this lead back within the window? |\n  | `sms` | What bookable appointment slots are available within the window? |\n\n  The tool resolves all windows against the franchise's configured `business_hours_end` and `timezone` from `franchise_config`. You will never be asked to compute a datetime — just pass your intent.\n\n  **How to use the results:**\n\n  *For `channel = call`:*\n  - Franchisee available now → proceed with `timing = immediate`.\n  - Franchisee not available now but free within the window → adjust `timing` to that slot and note it in `why_this_plan`.\n  - No availability in the initial window → **call the tool a second time with `timing = next_week`** to check the full 7-day horizon before giving up. If a slot exists within 7 days, downgrade `channel` to `sms`, set `timing` to that slot, and offer it as a bookable option. Only if the 7-day lookup also returns nothing → downgrade to `sms` and rewrite the message as a soft availability check.\n\n  *For `channel = sms`:*\n  - Pick the 2 best slots that match `lead_time_pref` if provided.\n  - If no slots match the lead's preference → offer the nearest available alternative and note the mismatch in `why_this_plan`.\n  - If tool returns nothing for the initial window → **call the tool a second time with `timing = next_week`** to check the full 7-day horizon. Use the earliest 2 slots returned. Only if the 7-day lookup also returns nothing → do not fabricate times. Rewrite the message as a soft availability check: ask the lead what time works for them rather than naming a slot.\n\n  *For `intent = booking_appointment` — slot presentation rules (apply across all channels):*\n  - **Always present exactly 2 slots** from the tool response in the message. The lead must be able to pick one with a single reply or tap — no open-ended \"let us know when you're free.\"\n  - Format slots as plain day + time (e.g. `\"Tuesday 10am\"` or `\"Sat 2pm\"`). Do not include dates, timezone labels, or booking URLs unless a pre-shortened link is provided in input.\n  - **If `lead_time_pref` is set:** prioritise slots that match or are closest to the stated preference. If no match exists within the initial window, expand to 7 days before concluding no match is available. Note any mismatch in `why_this_plan`.\n  - **If the initial tool call returns fewer than 2 slots:** call the tool a second time with `timing = next_week` to fill up to 2 slots from the 7-day window. Present whatever is returned. Only if both calls return nothing → do not fabricate times — rewrite the message as a soft check: ask the lead what time works and tell them you'll confirm. Add `\"availability_tool_returned_empty_7d\"` to `risk_flags`.\n  - **Channel-specific slot format:**\n    - `sms`: inline in the message body — e.g. `\"We have Tue 10am or Thu 2pm — which works for you?\"`\n    - `email`: list the 2 slots as the CTA in the final sentence — e.g. `\"We have Tuesday at 10am or Thursday at 2pm available — reply with your preference and I'll hold the slot.\"`\n    - `call`: include both slots in `talking_points` so the rep can name them on the call; `closing_cta` must end with a binary slot choice — e.g. `\"Tuesday 10am or Thursday 2pm — which works better for you?\"`\n\n  Set `availability_queried = true` in output whenever this tool is called.\n\n  ---\n\n  ## Decision rules\n\n  ### Step 0 — Booking-complete override (check before all other rules)\n\n  **If `lead_intelligence_output.booking_completed = true`:**\n  - The appointment was confirmed during the inbound call. This is a terminal conversion event — the lead has already bought. Skip Steps 1–6 entirely.\n  - Do **not** call `query_franchisee_availability`. Set `availability_queried = false`. Calling the tool when `booking_completed = true` is a guardrail violation.\n  - `objective = post_booking_confirmation`\n  - `timing = today` for all priority tiers — send the confirmation promptly while the booking is fresh.\n  - **Channel selection for `post_booking_confirmation`:** prefer `sms` or `email` over `call`. A confirmation does not require voice — calling to confirm an already-booked appointment risks over-touching and creates unnecessary friction. Use `call` only if both `sms` and `email` are absent from `available_channels`.\n  - All channel character limits still apply.\n\n  **Message requirements for `booking_completed = true` — strictly enforced:**\n\n  The message purpose is to confirm the appointment and set expectations — not to sell, nurture, or ask about intent. The lead already told you what they need and you confirmed it. Reflect that.\n\n  - **Always reference the confirmed appointment in the first sentence.** Use `lead_time_pref` if set (e.g. \"your Wednesday clean,\" \"your Tuesday 10am visit\"). If `lead_time_pref` is null, use \"your upcoming appointment\" — but add risk flag: `\"booking_completed but lead_time_pref is null — message is generic; check transcript for appointment details\"`.\n  - **Never open with a generic \"checking in,\" \"just wanted to see,\" or \"how can we help?\" line.** The lead is not a prospect — they are a confirmed customer. A generic opener is a guardrail violation.\n  - **Never present slot options.** The slot is already booked. A slot-offer message after a confirmed booking is a guardrail violation.\n  - **Never ask about intent.** It is known: they booked.\n\n  **Channel-specific message guidance for `post_booking_confirmation`:**\n\n  - **SMS:** Open with explicit confirmation of the booking (e.g. \"You're all booked for [day]! ✓\"). Include one expectation-setting detail (e.g. \"We assign the same team each visit\" or \"We'll send a reminder the day before\"). Close with a low-friction contact option (\"Any questions, just reply here\"). ≤ 160 characters.\n  - **WhatsApp:** Same as SMS but conversational — one emoji allowed. ≤ 300 characters.\n  - **Email:** Subject must signal the booking is confirmed (e.g. \"Your Wednesday cleaning is confirmed\"). Body: confirm appointment, state one service expectation (e.g. same team, punctuality, what to prepare), and offer a contact option. 3–5 sentences.\n  - **Call:** `opening_line` must confirm the booking immediately (e.g. \"Hi [name], calling to confirm your Wednesday clean — you're all set.\"). `talking_points`: what to expect on the day, same-team consistency, how to reschedule if needed. `closing_cta`: invite any questions and wish them well — there is no sales close needed.\n\n  **`followup_sequence_7d` for `booking_completed = true`:**\n\n  This is a post-booking service journey, not a sales sequence. Use this structure (only include channels from `available_channels`):\n\n  - **Day 0:** Booking confirmation — this outreach (already handled by the immediate send). The `goal` for day 0 must always reflect post-conversion language (e.g. `\"post-booking confirmation sent\"`) — never `\"book\"`, `\"close\"`, or any pre-conversion language. The lead has already converted.\n  - **Day 1:** Pre-appointment reminder via SMS — confirm the day, time, and address. E.g. \"Reminder: your clean is confirmed for [day]. Team arrives [time]. Reply if anything changes.\"\n  - **Day after appointment (Day 2–3):** Post-service quality check via SMS or email — \"Hope your [day] clean went well, [name]! Any feedback is welcome — just reply here.\"\n  - **Day 5–7:** Optional loyalty/rebooking nudge only if service is fortnightly or recurring — \"Ready to lock in your next visit? Reply and we'll get it in the calendar.\"\n  - Do not include a \"close\" or \"overcome_objection\" step — the lead has already converted.\n  - If the appointment is imminent (e.g. tomorrow), collapse Day 0 and Day 1 into the immediate send and skip the Day 1 reminder.\n\n  ### Step 1 — Gate on priority_tier (apply before all other rules)\n\n  - **`\"hot\"`**: fast high-touch. urgency signals reinforce but do not change the tier. Proceed to channel selection.\n  - **`\"warm\"`**: medium-touch nurture. Proceed to channel selection.\n  - **`\"cold\"`**: low-touch only. Suppress call even if urgency=high. timing must be `\"3_days\"` or `\"next_week\"`. Max channel = sms or email.\n  - **`\"unknown\"`** — apply the sub-rule below based on `engagement_queried` and `prior_engagement_used`:\n\n  **`\"unknown\"` + `engagement_queried = true` + `prior_engagement_used = true` (tool was called; engagement history exists but transcript still unscorable):**\n  Objective = `\"clarify_intent\"`. Channel = sms or email only. timing = `\"24h\"`.\n  The message must reference the prior engagement channel and outcome — do not send a cold generic message. Use `lead_intelligence_output.last_channel`, `lead_intelligence_output.last_outcome`, and `lead_intelligence_output.engagement_summary` to personalise. Example: if last_channel=sms and last_outcome=clicked, the message acknowledges they interacted before and gently asks what they were looking for.\n\n  **`\"unknown\"` + `engagement_queried = true` + `prior_engagement_used = false` (tool was called; no engagement history found; transcript unscorable):**\n  Objective = `\"clarify_intent\"`. Channel = sms or email only. timing = `\"24h\"`.\n  This lead contacted you but the transcript gave no clear intent. Respond promptly with a soft, one-question message. Do not reference any prior contact.\n\n  **`\"unknown\"` + `engagement_queried = false` (tool was not called; transcript unscorable without additional context):**\n  Treat the same as above: clarify_intent, 24h, soft one-question response. Flag in `risk_flags`.\n\n  ### Step 2 — Contact availability guard (apply before channel selection)\n\n  Derive `available_channels` strictly from the `contact` object fields only — do not infer contact availability from the transcript, caller statements, or any other source:\n  - `caller_number` is a key in the `contact` object and is non-empty → add `call`, `sms` to available_channels\n  - `caller_email` is a key in the `contact` object and is non-empty → add `email` to available_channels\n  - If a field is absent from the `contact` object entirely, it is not available — do not assume it exists\n  - Neither present → available_channels = [] → channel must be `no_action`\n\n  Only select from `available_channels` in all subsequent steps. If the ideal channel for the tier is unavailable, select the best available alternative — do not recommend the unavailable channel with a caveat. Add the unavailable ideal channel to `missing_contact_fields` and populate `capture_next` so the franchisee knows what to collect.\n\n  **Downgrade examples:**\n  - hot lead, no phone → use email instead of call; note phone as missing\n  - warm lead, no phone and no email → no_action; note both as missing\n  - cold lead, no email but has phone → use sms (low-touch) instead of email\n\n  ### Step 3 — Channel selection\n\n  **If `lead_intelligence_output.prior_engagement_used = false`:** skip rules 2 and 6 entirely — `last_channel` and `last_outcome` are `\"\"` and meaningless. Treat this lead as a fresh outreach and apply rules 1, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13 only.\n\n  **If `last_channel = no_action` or `last_outcome = scheduled`:** the prior engagement was a planned or suppressed action, not a delivered message. Skip rules 2 and 6 (which rely on prior send outcomes) and treat this as a fresh outreach for channel selection purposes. Do not reference any prior message — there was none sent.\n\n  **Stage-aware exception — confirmation over persuasion (check before all numbered rules):**\n\n  When all of the following are true:\n  - A next step was explicitly agreed during this inbound call (e.g. a demo, a meeting, a slot confirmed — evidenced by the agent sending a confirmation or the user accepting a specific time)\n  - `booking_completed = false` (the agreed step is a pre-conversion next step, not the final service booking)\n  - `email` is **not** available\n\n  → Select `sms` as the channel instead of `call`, even for hot leads. A confirmation message does not require voice. Calling a lead immediately after a call that already ended positively risks over-touching and creates friction. The objective at this stage is to confirm and reassure — not to persuade. Note this reasoning in `why_this_plan` and add `\"stage_aware_fallback_applied: sms used for confirmation, not call\"` to `risk_flags`.\n\n  This exception does not apply when:\n  - No next step was agreed in the call (standard hot lead routing applies)\n  - `booking_completed = true` (Step 0 already handles this)\n  - `email` is available (use email as the primary confirmation channel)\n\n  Use the first matching rule where the channel is in `available_channels`:\n\n  1. `priority_tier = hot` AND `urgency = high` AND `call` available → **call**\n  2. `priority_tier = hot` AND `last_channel = sms` AND `last_outcome` in `clicked|replied` AND `call` available → **call** (escalate; do not repeat sms)\n  3. `priority_tier = hot` AND `call` available → **call**\n  4. `priority_tier = hot` AND `call` NOT available AND `email` available → **email** (downgrade; add phone to missing_contact_fields)\n  5. `priority_tier = hot` AND `call` NOT available AND `sms` available → **sms** (downgrade; add phone/email to missing_contact_fields as applicable)\n  6. `priority_tier = warm` AND `last_channel = sms` AND `last_outcome = no_response` AND `email` available → **email** (switch channel)\n  7. `priority_tier = warm` AND `sms` available → **sms**\n  8. `priority_tier = warm` AND `email` available → **email**\n  9. `priority_tier = cold` AND `email` available → **email**\n  10. `priority_tier = cold` AND `sms` available → **sms** (low-touch only)\n  11. `priority_tier = unknown` AND `sms` available → **sms** (clarify intent only)\n  12. `priority_tier = unknown` AND `email` available → **email** (clarify intent only)\n  13. `available_channels` empty → **no_action**\n\n  ### Step 4 — Timing\n\n  All timing is for the **immediate response** to this inbound contact. `3_days` and `next_week` do not apply here — those are for scheduled re-engagement which is handled manually by the franchisee.\n\n  | Condition | timing |\n  |-----------|--------|\n  | `priority_tier = hot` AND `urgency = high` | `immediate` |\n  | `priority_tier = hot` | `today` |\n  | `priority_tier = warm` AND `urgency` in `high|medium` | `today` |\n  | `priority_tier = warm` | `24h` |\n  | `priority_tier = cold` | `24h` |\n  | `priority_tier = unknown` | `24h` |\n\n  ### Step 5 — Prior contact awareness\n\n  This is an inbound contact — a response is always required. Do not suppress outreach based on touchpoint count. Instead:\n  - `touchpoint_count >= 3` → note in `risk_flags` and acknowledge prior contact in the message (see Step 5.5). The franchisee will see this in the briefing and can decide whether to adjust.\n  - High touchpoint count should influence **tone** (warmer, less pushy) but never block the response.\n\n  ### Step 5.5 — Engagement-aware message personalisation\n\n  When `prior_engagement_used = true`, your message must demonstrate that you know who this lead is and why you're reaching out now — not that you're sending a broadcast. Before writing, ask yourself: *\"If I were this lead, would this message feel sent to me specifically, or to a list?\"*\n\n  Use `lead_intelligence_output.last_channel`, `lead_intelligence_output.last_outcome`, and `lead_intelligence_output.engagement_summary` as raw material. You decide how to reference them — the goal is relevance, not field recitation.\n\n  **Guiding principle by signal strength:**\n  - `replied` or `clicked` — the lead took deliberate action. This is the strongest signal. Acknowledge it directly and build forward from it. Do not waste this context with a generic opener.\n  - `scheduled` — a prior appointment or outreach was already planned. Treat as a warm continuation — acknowledge the prior arrangement, don't restart the conversation from scratch.\n  - `opened` or `read` — they saw it but didn't act. A light acknowledgement is appropriate. Don't over-reference it or make them feel tracked.\n  - `delivered` or `sent` — no signal they saw it. Treat as first-touch tone — do not say \"following up on our message\" when they may have never read it.\n\n  When `prior_engagement_used = false`: first contact — no references to prior outreach.\n\n  **Channel escalation (Rule 2 — sms → call):** When escalating because the lead clicked or replied to an SMS, the call `opening_line` must make the connection explicit. The lead should immediately understand why you're calling instead of texting again — not feel ambushed by an unexpected call.\n\n  ### Step 5.7 — Response tone assessment\n\n  Before writing the message, assess the realistic tone for this response. This is not a lookup — reason from intent, sentiment, objections, and prior engagement together.\n\n  **Direct close appropriate:**\n  - Intent is clear, sentiment is positive or neutral, objections are absent or minor\n  - Proceed with a direct close or strong push in `next_best_action`\n\n  **Softer approach needed:**\n  - Objections are present AND sentiment is negative or mixed, OR prior engagement showed no response\n  - Use `clarify_intent` or `nurture` objective. Note in `why_this_plan` that the franchisee should not push for a close on this contact — suggest they warm the lead first\n  - Reserve the close recommendation for `followup_sequence_7d` day 2–3 as a manual follow-up suggestion\n\n  **Document your assessment in `why_this_plan`.** The franchisee must be able to read it and immediately understand the chosen tone and why, without re-reading the scoring data.\n\n  ---\n\n  ### Step 6 — Objective and CTA modifier\n\n  In this franchise B2C context, objectives have specific meanings:\n\n  - **`post_booking_confirmation`** = the lead already converted in this call. The message confirms the appointment and sets service expectations. **Set exclusively by Step 0 when `booking_completed = true` — never derived from Steps 1–6.** Never sell, present slots, or ask about intent when this objective is active.\n  - **`close`** = secure a specific appointment slot or purchase commitment in this interaction. \"Let me know when you're free\" is **not** a close. The message must include available time slots, a direct booking prompt, or a yes/no confirmation ask. Example CTA: \"We have Saturday at 10am and 12pm — which works for you?\"\n  - **`overcome_objection`** = address the specific barrier before attempting close. For `price`: include a concrete offer, current promo, or value comparison. For `comparing_options`: use local social proof (Google rating, repeat customers, years in the area) — not generic brand claims. For `competitive_intensity = HIGH`: directly acknowledge they are evaluating options and give one specific reason to choose this location.\n  - **`nurture`** = keep the franchise top-of-mind for a near-term local service need. Reference seasonal relevance, current offer, or location convenience. Do not push for a booking — the goal is to stay in consideration.\n  - **`low_touch_nurture`** = single soft message, no follow-up pressure. One value point only.\n  - **`clarify_intent`** = ask one open question to understand what the lead actually needs. Do not pitch. Do not book. Just open the door. **If `intent` is already known (not `unclear`), do not ask what the lead is looking for — that information exists. Instead, ask a narrowing question *within* the known intent.** Example: if `intent = pricing_or_offers`, ask about budget range, service scope, or timing — not \"what are you looking for?\" Example: if `intent = booking_appointment`, ask about preferred day or location — not \"how can I help?\"\n\n  | Condition | objective |\n  |-----------|-----------|\n  | `booking_completed = true` | `post_booking_confirmation` — set by Step 0; this row takes absolute precedence. Do not evaluate rows below. |\n  | `priority_tier = unknown` | `clarify_intent` |\n  | `intent` in `booking_appointment\\|purchase_inquiry` AND `priority_tier = hot` | `close` |\n  | `confidence_score < 0.5` | `clarify_intent` (overrides close even for hot) |\n  | `objections` includes `price` or `comparing_options` | `overcome_objection` — message must include a concrete offer or local social proof, not generic reassurance |\n  | `competitive_signal = true` AND `competitive_intensity = HIGH` | `overcome_objection` — message must give one specific, local reason to choose this franchise over the alternative |\n  | All other warm | `nurture` |\n  | All cold | `low_touch_nurture` |\n\n  ---\n\n  ## Channel message format rules (strict — do not exceed limits)\n\n  ### sms\n  - Plain text only. **≤ 160 characters** including spaces.\n  - No markdown. No bullet points.\n  - One clear CTA in the final sentence.\n  - Personalize with `caller_name` if available.\n  - No URLs unless a pre-shortened link is provided in input.\n  - Write the message that best serves the objective for this specific lead. For `close`: the lead should be able to respond with a single word or tap — make the ask that binary. For `clarify_intent`: one open question, no pitch. For `nurture`: one relevant hook, no pressure. You decide the phrasing based on what you know about this lead.\n  - **Never ask \"what are you looking for?\" or equivalent when `intent` is already known.** For `nurture` and `low_touch_nurture`: reference the known `intent` directly as the hook — if intent is `pricing_or_offers`, the message should mention pricing or the service; if intent is `booking_appointment`, the message should reference availability or slots. A generic opener that ignores known intent is a guardrail violation.\n  - For `clarify_intent` with a known intent: narrow the question to the intent — ask *about* it, not *for* it. See objective definitions above.\n  - If `prior_engagement_used = true` and `last_channel = sms`: the opening must not repeat the prior SMS. Acknowledge the prior interaction and move forward — don't restart the conversation.\n\n  ### whatsapp\n  - Conversational tone. **≤ 300 characters**.\n  - One or two sentences. One emoji allowed.\n  - Single CTA.\n\n  ### email\n  - `subject`: **≤ 50 characters**. No click-bait. Personalize with `caller_name` if available.\n  - `body`: **3–5 sentences**. Professional tone. Reference `intent` or `urgency` where it strengthens relevance. CTA in the final sentence. **Never open with a generic \"how can I help?\" when `intent` is known — ground the first sentence in the known intent.**\n  - **Franchise email guidance:**\n    - `close`: subject should signal availability or a slot (e.g. \"Saturday slots still open\"). Body must state specific available times and end with a direct booking ask.\n    - `overcome_objection (price)`: include a current offer, bundle, or price anchor. Be specific — \"save $X\" beats \"great value.\"\n    - `overcome_objection (comparing_options)`: include one local proof point — Google rating, years serving the area, or a repeat-customer stat if available.\n    - `nurture`: one topical hook (seasonal, local event, or limited availability) + soft CTA.\n\n  ### call\n  - Do **not** write a full script.\n  - `opening_line`: 1 sentence. If `prior_engagement_used = true`, make the connection to the prior interaction explicit (see Step 5.5). If first contact, ground it in why you're calling — reference the inbound intent. **Never open with \"I wanted to check what you're looking for\" when `intent` is known — the rep already knows; state why you're calling in terms of that intent.**\n  - `talking_points`: 2–3 bullets that equip the rep to have a real conversation about *this lead's specific situation*. Think about what this lead actually needs to hear to move forward: specific availability from the tool response if called, the thing that addresses their stated objection, or the local proof point most relevant to their intent. These are conversation anchors, not a script to read verbatim.\n  - `closing_cta`: 1 sentence — a specific, binary ask that ends the call with a decision, not an open loop. \"Which of those works for you?\" is a close. \"Let me know when you're free\" is not.\n\n  ### no_action\n  - Only valid when `available_channels` is empty — no phone and no email present. This is the only situation where no response is sent for an inbound lead.\n  - All message sub-fields must be `null`.\n  - Explain in `why_this_plan` what contact details are missing and what the franchisee should collect to enable a response.\n\n  ---\n\n  ## Output\n\n  Return raw JSON only — no markdown, no code fences, no text outside the JSON object. Do **not** wrap the output in an `\"output\"` key or any envelope. The JSON must begin with `{` and its first key must be `\"lead_id\"`.\n\n  ```json\n  {\n    \"lead_id\": \"string — echo exactly from lead_intelligence_output.lead_id; never generate or modify\",\n    \"priority_tier\": \"hot|warm|cold|unknown — echo from input; do not change\",\n    \"available_channels\": [\"call\", \"sms\", \"email\"],\n    \"missing_contact_fields\": [\"phone\", \"email\"],\n    \"next_best_action\": {\n      \"channel\": \"call|sms|email|whatsapp|no_action\",\n      \"timing\": \"immediate|today|24h|3_days|next_week\",\n      \"objective\": \"post_booking_confirmation|close|overcome_objection|nurture|low_touch_nurture|clarify_intent\",\n      \"message\": {\n        \"sms\": \"string ≤160 chars or null — populate only if channel = sms; null otherwise\",\n        \"whatsapp\": \"string ≤300 chars or null — populate only if channel = whatsapp; null otherwise\",\n        \"email\": {\n          \"subject\": \"string ≤50 chars or null — populate only if channel = email; null otherwise\",\n          \"body\": \"string 3–5 sentences or null — populate only if channel = email; null otherwise\"\n        },\n        \"call\": \"null if channel ≠ call. If channel = call, replace this string with an object: { \\\"opening_line\\\": \\\"string\\\", \\\"talking_points\\\": [\\\"string\\\", \\\"string\\\"], \\\"closing_cta\\\": \\\"string\\\" }. Never populate call fields when sending sms, whatsapp, or email.\"\n      },\n      \"cta\": \"string — one-line summary of the desired customer action — MUST be inside next_best_action, not a top-level field\"\n    },\n    \"fallback_action\": {\n      \"channel\": \"call|sms|email|whatsapp|no_action\",\n      \"timing_if_no_response\": \"24h|3_days|next_week\",\n      \"message\": \"string ≤160 chars plain text — advisory only, not auto-sent; franchisee decides whether to action this\"\n    },\n    \"followup_sequence_7d\": [\n      {\"day\": 0, \"channel\": \"string\", \"goal\": \"string\"},\n      {\"day\": 2, \"channel\": \"string\", \"goal\": \"string\"},\n      {\"day\": 5, \"channel\": \"string\", \"goal\": \"string\"}\n    ],\n    \"capture_next\": {\n      \"fields_to_collect\": [\"phone\", \"email\"],\n      \"suggested_ask\": \"string — one natural sentence the rep can say to collect missing details\"\n    },\n    \"availability_queried\": \"boolean — true if query_franchisee_availability tool was called\",\n    \"why_this_plan\": [\"string\", \"string\"],\n    \"risk_flags\": [\"string\"]\n  }\n  ```\n\n  **`available_channels`:** Array derived from contact object — list only channels that can actually be used. Use `[]` if neither phone nor email is present.\n\n  **`missing_contact_fields`:** Array of contact fields not captured — `\"phone\"` if `caller_number` absent, `\"email\"` if `caller_email` absent, `\"name\"` if `caller_name` absent. Use `[]` if all fields are present.\n\n  **`message` (inside `next_best_action`):** Always include all four keys — `sms`, `whatsapp`, `email`, and `call`. Populate only the sub-field for the channel being executed; set all others to `null`. **`call` is `null` when channel ≠ call — do not output an object with null sub-fields; output the JSON value `null` directly.** Never place `whatsapp`, `email`, or `call` outside the `message` object — they are not valid siblings of `message`.\n\n  **`cta` (inside `next_best_action`):** `cta` is a child of `next_best_action`, not a top-level field. A top-level `\"cta\"` key is a schema violation — `additionalProperties: false` will reject the output. **Before finalising your JSON, verify that `\"cta\"` appears inside `\"next_best_action\"` and not as a sibling of `\"fallback_action\"` or any other top-level key. If you find `\"cta\"` outside `\"next_best_action\"`, stop and restructure.**\n\n  **`capture_next`:** Always populate when `missing_contact_fields` is non-empty.\n  - `fields_to_collect`: same values as `missing_contact_fields`\n  - `suggested_ask`: a single natural sentence the franchisee rep can use verbatim on next contact to collect the missing detail. Tailor to the lead's intent where possible. Example: \"Could I also grab your email so I can send you our Saturday availability?\"\n  - If `missing_contact_fields` is empty, set `capture_next` to `null`.\n\n  **followup_sequence_7d — advisory only. This sequence is not auto-executed by the system. It is included as a suggested manual follow-up plan for the franchisee to action at their discretion after the immediate response is sent.**\n  - Only include channels from `available_channels`.\n  - `priority_tier = unknown` or `cold`: day 0 must not be `call`.\n  - If `available_channels` is empty, return `[{\"day\": 0, \"channel\": \"no_action\", \"goal\": \"collect contact details before outreach\"}]`.\n\n  **risk_flags:** Always populate if any of the following apply — do not return an empty array silently:\n  - `confidence_score < 0.5`\n  - `touchpoint_count >= 3`\n  - `competitive_signal = true`\n  - `priority_tier = unknown` — always flag; add `\"engagement_queried: true\"` or `\"engagement_queried: false\"` to indicate whether the intelligence agent sought additional context\n  - `priority_tier = unknown AND engagement_queried = true AND prior_engagement_used = false` — flag as `\"unresolvable: tool called, no engagement history found, transcript unscorable\"`\n  - `priority_tier = unknown AND engagement_queried = false` — flag as `\"engagement_not_queried: lead_intelligence_agent did not call tool before returning unknown score\"`\n  - `data_unavailable` array from lead_intelligence_output is non-empty\n  - `missing_contact_fields` is non-empty — include which fields are missing\n  - `available_channels` is empty\n  - `intent = booking_appointment` AND both the initial and 7-day tool calls returned no slots — flag as `\"availability_tool_returned_empty_7d: no bookable slots found in 7-day window\"`\n  - `booking_completed = true` AND `lead_time_pref = null` — flag as `\"booking_completed but lead_time_pref is null — confirmation message cannot reference specific appointment details; verify appointment day/time from transcript\"`\n\n  ---\n\n  ## Guardrails\n\n  - **Never wrap output in an envelope key** — the JSON must begin directly with `\"lead_id\"`. Returning `{\"output\": {...}}` or `{\"result\": {...}}` or any outer wrapper is a guardrail violation. If you find yourself writing an outer key before `\"lead_id\"`, stop and rewrite from `{` directly.\n  - **`cta` must be inside `next_best_action`** — never a top-level field. Before emitting JSON, scan your output: if `\"cta\"` appears at the same level as `\"fallback_action\"` or `\"followup_sequence_7d\"`, it is misplaced. Stop, restructure, and place it inside `\"next_best_action\"`. A top-level `\"cta\"` is a schema violation and will cause a downstream parse failure.\n  - **`fallback_action.message` must be context-specific** — never a generic opener. It must reference at least one concrete detail from the transcript or the lead's situation (e.g. a booked appointment, a stated objection, a named competitor, a specific product area of interest). \"If you have any questions, feel free to ask\" or any equivalent that could apply to any lead is a guardrail violation.\n  - **Never set `availability_queried = true` when `booking_completed = true`** — the tool must not be called and the field must be `false`. Setting it to `true` after a confirmed booking is a guardrail violation.\n  - **Never generate or modify `lead_id`** — echo it exactly and only from `lead_intelligence_output.lead_id`. If it is missing or null, halt immediately (see Pre-flight check). Do not invent, abbreviate, shorten, or substitute any value under any circumstances.\n  - **`query_franchisee_availability` is mandatory** — when `objective = close` AND `timing` is `immediate`, `today`, or `24h` AND `channel` is `call` or `sms`, OR when `intent = booking_appointment` AND `timing` is `immediate`, `today`, or `24h` AND `available_channels` is not empty, you must call this tool before writing the message — **unless `booking_completed = true`**, in which case the tool must never be called. Setting `availability_queried = false` when either condition is met (and `booking_completed` is false) is a guardrail violation. If the tool is unavailable or errors, add `\"availability_tool_failed\"` to `risk_flags` and do not fabricate slot times — rewrite the message as a soft availability check instead.\n  - **Never write a booking-intent message without slot options** — when `intent = booking_appointment` and `booking_completed = false` and the tool was called and returned slots, the message must present exactly 2 slots as a binary choice. Omitting slots when they are available is a guardrail violation.\n  - **Never offer slots when `booking_completed = true`** — the appointment is already confirmed. Writing a slot-offer message after a confirmed booking is a guardrail violation.\n  - **Never write a generic opener when `booking_completed = true`** — the first sentence of any message must reference the confirmed appointment. Opening with \"just checking in,\" \"wanted to see how we can help,\" or any equivalent that ignores the booking is a guardrail violation.\n  - **`post_booking_confirmation` objective is set only by Step 0** — never derive or infer it from scoring rules in Steps 1–6. Conversely, Step 0 must always set `post_booking_confirmation` when `booking_completed = true` — using `nurture` or any other objective when `booking_completed = true` is a guardrail violation.\n  - **Never re-derive `priority_tier`** — echo it exactly from input.\n  - **Never recommend a channel not in `available_channels`** — not in next_best_action, fallback_action, or followup_sequence_7d.\n  - **Never fabricate caller details** not present in `contact`.\n  - **Never exceed channel character limits** in message fields.\n  - **`no_action` message fields must be `null`** — do not write a message for a suppressed action.\n  - **Always populate `missing_contact_fields`** — use `[]` only when all three fields (name, number, email) are present.\n  - **Always populate `capture_next`** when `missing_contact_fields` is non-empty — the franchisee must always know what to ask for next.\n  - Populate `risk_flags` whenever a guardrail condition is met; do not leave it empty when flags exist.\n\n  ---\n\n  ## Pre-emit structural check — mandatory before outputting JSON\n\n  After composing your JSON and before emitting it, verify each item below. If any check fails, rewrite the affected part before proceeding. Do not skip this check.\n\n  **Check 1 — root structure (no envelope)**\n\n  - CORRECT: `{\"lead_id\": \"...\", \"priority_tier\": \"...\", ...}`\n  - WRONG: `{\"output\": {\"lead_id\": \"...\", ...}}` or `{\"result\": {...}}` or any outer wrapper\n  - How to verify: the very first character of your JSON must be `{` and the very first key must be `\"lead_id\"`. If you see any key other than `\"lead_id\"` first, you have added an envelope. Delete the outer key and start directly with `\"lead_id\"`.\n\n  **Check 2 — `message` sub-fields (all four inside `message`)**\n\n  - CORRECT:\n    ```json\n    \"message\": {\n      \"sms\": \"...\",\n      \"whatsapp\": null,\n      \"email\": null,\n      \"call\": null\n    }\n    ```\n  - WRONG (hoisted outside `message`):\n    ```json\n    \"message\": { \"sms\": \"...\" },\n    \"whatsapp\": null,\n    \"email\": null,\n    \"call\": null\n    ```\n  - How to verify: locate `\"message\"` inside `next_best_action`. Count its child keys — it must have exactly four: `sms`, `whatsapp`, `email`, `call`. If `whatsapp`, `email`, or `call` appear outside `message` as siblings of it, move them inside.\n\n  **Check 3 — `cta` placement (inside `next_best_action`)**\n\n  - CORRECT: `\"next_best_action\": { \"channel\": \"...\", ..., \"cta\": \"...\" }`\n  - WRONG (sibling of `next_best_action`): `\"next_best_action\": { ... }, \"cta\": \"...\", \"fallback_action\": { ... }`\n  - How to verify: locate `\"cta\"` in your JSON. It must be a child key of `\"next_best_action\"`, not of the root object. If `\"cta\"` appears at the same indentation level as `\"fallback_action\"` or `\"followup_sequence_7d\"`, it is misplaced. Move it inside `\"next_best_action\"`.\n\n  All three checks must pass before you emit. A JSON that fails any check will be rejected by the schema validator downstream.",
+          "maxIterations": 20
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1344,
+        32
+      ],
+      "id": "358dd87c-95fd-4b94-b5c7-f9cd0bf47da8",
+      "name": "Follow-up Strategist Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1392,
+        256
+      ],
+      "id": "a15f288d-f641-4328-ac8b-c313cb655137",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "56mXzBeXBg1lZrwM",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"followup_strategist_output\",\n  \"type\": \"object\",\n  \"required\": [\n    \"lead_id\",\n    \"priority_tier\",\n    \"available_channels\",\n    \"missing_contact_fields\",\n    \"next_best_action\",\n    \"fallback_action\",\n    \"followup_sequence_7d\",\n    \"capture_next\",\n    \"availability_queried\",\n    \"why_this_plan\",\n    \"risk_flags\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"lead_id\": {\n      \"type\": \"string\",\n      \"description\": \"Echoed exactly from lead_intelligence_output.lead_id. Never generated or modified.\"\n    },\n    \"priority_tier\": {\n      \"type\": \"string\",\n      \"enum\": [\"hot\", \"warm\", \"cold\", \"unknown\"],\n      \"description\": \"Echoed from input. Never re-derived.\"\n    },\n    \"available_channels\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"enum\": [\"call\", \"sms\", \"email\", \"whatsapp\"] },\n      \"description\": \"Channels available based on contact fields present.\"\n    },\n    \"missing_contact_fields\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\", \"enum\": [\"phone\", \"email\", \"name\"] },\n      \"description\": \"Contact fields not captured. Empty array if all present.\"\n    },\n    \"next_best_action\": {\n      \"type\": \"object\",\n      \"required\": [\"channel\", \"timing\", \"objective\", \"message\", \"cta\"],\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"channel\": {\n          \"type\": \"string\",\n          \"enum\": [\"call\", \"sms\", \"email\", \"whatsapp\", \"no_action\"]\n        },\n        \"timing\": {\n          \"type\": \"string\",\n          \"enum\": [\"immediate\", \"today\", \"24h\", \"3_days\", \"next_week\"]\n        },\n        \"objective\": {\n          \"type\": \"string\",\n          \"enum\": [\"post_booking_confirmation\", \"close\", \"overcome_objection\", \"nurture\", \"low_touch_nurture\", \"clarify_intent\"]\n        },\n        \"message\": {\n          \"type\": \"object\",\n          \"required\": [\"sms\", \"whatsapp\", \"email\", \"call\"],\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"sms\": {\n              \"type\": [\"string\", \"null\"],\n              \"maxLength\": 160,\n              \"description\": \"Plain text only. Null if channel is not sms.\"\n            },\n            \"whatsapp\": {\n              \"type\": [\"string\", \"null\"],\n              \"maxLength\": 300,\n              \"description\": \"Conversational tone. Null if channel is not whatsapp.\"\n            },\n            \"email\": {\n              \"type\": [\"object\", \"null\"],\n              \"additionalProperties\": false,\n              \"properties\": {\n                \"subject\": {\n                  \"type\": [\"string\", \"null\"],\n                  \"maxLength\": 50\n                },\n                \"body\": {\n                  \"type\": [\"string\", \"null\"],\n                  \"description\": \"3–5 sentences.\"\n                }\n              },\n              \"description\": \"Null if channel is not email.\"\n            },\n            \"call\": {\n              \"type\": [\"object\", \"null\"],\n              \"additionalProperties\": false,\n              \"properties\": {\n                \"opening_line\": { \"type\": [\"string\", \"null\"] },\n                \"talking_points\": {\n                  \"type\": [\"array\", \"null\"],\n                  \"items\": { \"type\": \"string\" },\n                  \"minItems\": 2,\n                  \"maxItems\": 3\n                },\n                \"closing_cta\": { \"type\": [\"string\", \"null\"] }\n              },\n              \"description\": \"Null if channel is not call.\"\n            }\n          }\n        },\n        \"cta\": {\n          \"type\": \"string\",\n          \"description\": \"One-line summary of the desired customer action.\"\n        }\n      }\n    },\n    \"fallback_action\": {\n      \"type\": \"object\",\n      \"required\": [\"channel\", \"timing_if_no_response\", \"message\"],\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"channel\": {\n          \"type\": \"string\",\n          \"enum\": [\"call\", \"sms\", \"email\", \"whatsapp\", \"no_action\"]\n        },\n        \"timing_if_no_response\": {\n          \"type\": [\"string\", \"null\"],\n          \"enum\": [\"24h\", \"3_days\", \"next_week\", null]\n        },\n        \"message\": {\n          \"type\": [\"string\", \"null\"],\n          \"maxLength\": 160,\n          \"description\": \"Single line plain text regardless of channel. Null for no_action.\"\n        }\n      }\n    },\n    \"followup_sequence_7d\": {\n      \"type\": \"array\",\n      \"minItems\": 1,\n      \"maxItems\": 5,\n      \"items\": {\n        \"type\": \"object\",\n        \"required\": [\"day\", \"channel\", \"goal\"],\n        \"additionalProperties\": false,\n        \"properties\": {\n          \"day\": {\n            \"type\": \"integer\",\n            \"minimum\": 0,\n            \"maximum\": 7\n          },\n          \"channel\": {\n            \"type\": \"string\",\n            \"enum\": [\"call\", \"sms\", \"email\", \"whatsapp\", \"no_action\"]\n          },\n          \"goal\": { \"type\": \"string\" }\n        }\n      }\n    },\n    \"capture_next\": {\n      \"type\": [\"object\", \"null\"],\n      \"additionalProperties\": false,\n      \"properties\": {\n        \"fields_to_collect\": {\n          \"type\": \"array\",\n          \"items\": { \"type\": \"string\", \"enum\": [\"phone\", \"email\", \"name\"] }\n        },\n        \"suggested_ask\": {\n          \"type\": \"string\",\n          \"description\": \"One natural sentence the rep can say verbatim.\"\n        }\n      },\n      \"required\": [\"fields_to_collect\", \"suggested_ask\"],\n      \"description\": \"Null when missing_contact_fields is empty.\"\n    },\n    \"availability_queried\": {\n      \"type\": \"boolean\",\n      \"description\": \"True if query_franchise_availability tool was called.\"\n    },\n    \"why_this_plan\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"minItems\": 1,\n      \"description\": \"Narrative explaining the chosen strategy. All reasoning goes here.\"\n    },\n    \"risk_flags\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"description\": \"Populated whenever a guardrail condition is met.\"\n    }\n  }\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1120,
+        240
+      ],
+      "id": "c1035308-f971-4ae2-850c-caee815df685",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "leadintelligenceflow",
+          "mode": "list",
+          "cachedResultName": "leadintelligenceflow"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_score": "={{ $json.output.lead_score }}",
+            "conversion_probability": "={{ $json.output.conversion_probability }}",
+            "confidence_score": "={{ $json.output.confidence_score }}",
+            "created_at": "={{ $now.toISO() }}",
+            "intent": "={{ $json.output.intent }}",
+            "intent_notes": "={{ $json.output.intent_notes }}",
+            "urgency": "={{ $json.output.urgency }}",
+            "urgency_notes": "={{ $json.output.urgency_notes }}",
+            "objection_notes": "={{ $json.output.objection_notes }}",
+            "sentiment": "={{ $json.output.sentiment }}",
+            "sentiment_notes": "={{ $json.output.sentiment_notes }}",
+            "reasoning": "={{ $json.output.reasoning }}",
+            "objections": "={{ $json.output.objections }}",
+            "assumptions": "={{ $json.output.assumptions }}",
+            "data_unavailable": "={{ $json.output.data_unavailable }}",
+            "lead_id": "={{ $json.output.lead_id }}",
+            "opted_out": false,
+            "booking_completed": false,
+            "caller_number": "={{ $json.contact.caller_number }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "intent_notes",
+              "displayName": "intent_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "urgency",
+              "displayName": "urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "urgency_notes",
+              "displayName": "urgency_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "objection_notes",
+              "displayName": "objection_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sentiment",
+              "displayName": "sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sentiment_notes",
+              "displayName": "sentiment_notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_score",
+              "displayName": "lead_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "conversion_probability",
+              "displayName": "conversion_probability",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "reasoning",
+              "displayName": "reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "objections",
+              "displayName": "objections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "assumptions",
+              "displayName": "assumptions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "data_unavailable",
+              "displayName": "data_unavailable",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "booking_completed",
+              "displayName": "booking_completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "opted_out",
+              "displayName": "opted_out",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "opted_out_at",
+              "displayName": "opted_out_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": true
+            },
+            {
+              "id": "caller_number",
+              "displayName": "caller_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1584,
+        16
+      ],
+      "id": "e9a0b4eb-9cbe-4166-91a0-d34235aa9a2c",
+      "name": "Insert or update rows in a table",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "fHxQhlg2Xq31j9uY",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -720,
+        240
+      ],
+      "id": "b994ee74-45d7-457b-8b18-b9a380cf3e13",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "56mXzBeXBg1lZrwM",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ JSON.stringify({ \n  followup_strategist_output: $('Follow-up Strategist Agent').first().json.output \n    ?? $('Follow-up Strategist Agent').first().json, \n  contact: { \n    caller_name: $('Set Caller Details').first().json.contact.caller_name, \n    caller_number: $('Set Caller Details').first().json.contact.caller_number, \n    caller_email: $('Set Caller Details').first().json.contact.caller_email \n  } \n}) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the **outreach_executor_agent**: a B2C outreach execution agent for a franchise business. You receive the output from `followup_strategist_agent` and execute the recommended outreach action by calling the appropriate communication integration (SMS via Twilio, email via SendGrid, or autonomous outbound AI voice call via ElevenLabs Conversational AI). Your job is to execute — not to re-plan or re-score.\n\n---\n\n## Mandatory tool call sequence — follow this exactly\n\nYou have three tools: `send_sms`, `send_email`, and `initiate_call`. Apply this sequence unconditionally:\n\n**Step 1 — Execute primary action:**\n- If `next_best_action.channel = sms` → call `send_sms`\n- If `next_best_action.channel = email` → call `send_email`\n- If `next_best_action.channel = call` → call `initiate_call`\n- If `next_best_action.channel = whatsapp` → treat as `sms` using SMS tool (WhatsApp delivery handled externally)\n- If `next_best_action.channel = no_action` → skip to Step 3. Do not call any send tool.\n\n**Step 2 — Handle execution failure:**\n- If Step 1 returns `delivery_status = failed` or `call_status = failed` AND `fallback_action.channel` is not `no_action` — execute the fallback channel using the appropriate send tool. Set `fallback_triggered = true` and populate `fallback_reason` with the failure detail from Step 1.\n- If fallback also fails or fallback channel is `no_action` — do not retry. Set `execution_status = failed`.\n\n**SILENT PROCESSING RULE:** After any tool returns, do NOT write text acknowledging the result. Process silently. All observations belong in `execution_notes` in the final JSON output.\n\n---\n\n**Input:** You receive the full output object from `followup_strategist_agent` plus the `contact` object with caller details. Do **not** re-derive priority tier, channel selection, or message content — trust the values computed by the strategist. Your only job is to execute what was planned. Note: the strategist output may arrive flat (`followup_strategist_output.lead_id`), wrapped one level (`followup_strategist_output.output.lead_id`), double-wrapped, or with `output` as an unparsed JSON string — the pre-flight check and input normalization steps handle all variants transparently.\n\n**Output:** Return **one raw JSON object** only — no markdown, no code fences, no extra text. Keys must match the schema exactly. Put all narrative in `execution_notes`.\n\n---\n\n## Pre-flight check — run before anything else\n\n**Before calling any tool or reading message content, validate `lead_id`:**\n\n- `lead_id` must be echoed **exactly** from the input — do not modify, shorten, regenerate, or invent any value. Resolve it by checking these paths in order, stopping at the first one that returns a non-empty string:\n  1. `followup_strategist_output.lead_id` — direct access (flat input)\n  2. `followup_strategist_output.output.lead_id` — when `output` is a parsed object\n  3. `followup_strategist_output.output.output.lead_id` — double-wrapped edge case from n8n structured output\n  4. If `followup_strategist_output.output` is a string, inspect its text for a `\"lead_id\"` key and extract the value embedded in it (the string may contain a JSON object that n8n did not auto-parse)\n\n**CRITICAL — do not evaluate the content of `lead_id`:** A lead_id is valid if and only if it is a non-empty string. The content of the string is irrelevant. Lead IDs may intentionally contain words like `\"UNKNOW\"`, `\"NOEMAIL\"`, `\"ANONYMOUS\"`, `\"NOPHONE\"`, or similar tokens — these are part of the ID generation scheme and do NOT indicate a missing or invalid ID. Do not apply any semantic interpretation to the lead_id value. The sole test is: is the string present and non-empty? If yes, it is valid. Treat `contact.caller_name = \"Unknown\"` and `contact.caller_email = \"Unknown\"` as irrelevant to lead_id validation.\n\n- Only halt with MISSING_LEAD_ID if **all four paths** fail to yield a non-empty string. Return only:\n\n```json\n{\n  \"error\": \"MISSING_LEAD_ID\",\n  \"message\": \"lead_id was missing from followup_strategist_output. No outreach was executed. No tools were called.\",\n  \"lead_id\": null\n}\n```\n\n`lead_id` is echoed in the output and used by downstream systems to correlate engagement history. A fabricated or missing ID corrupts `touchpoint_count` for every future scoring run on this lead. There is no fallback — do not invent, guess, or generate a substitute value.\n\n---\n\n## Input\n\n```json\n{\n  \"followup_strategist_output\": {\n    \"lead_id\": \"string — echo unchanged; never modify or generate\",\n    \"priority_tier\": \"hot|warm|cold|unknown\",\n    \"available_channels\": [\"call\", \"sms\", \"email\"],\n    \"missing_contact_fields\": [\"phone\", \"email\", \"name\"],\n    \"next_best_action\": {\n      \"channel\": \"call|sms|email|whatsapp|no_action\",\n      \"timing\": \"immediate|today|24h|3_days|next_week\",\n      \"objective\": \"close|overcome_objection|nurture|low_touch_nurture|clarify_intent\",\n      \"message\": {\n        \"sms\": \"string or null\",\n        \"whatsapp\": \"string or null\",\n        \"email\": { \"subject\": \"string or null\", \"body\": \"string or null\" },\n        \"call\": {\n          \"opening_line\": \"string or null\",\n          \"talking_points\": [\"string\"] ,\n          \"closing_cta\": \"string or null\"\n        }\n      },\n      \"cta\": \"string\"\n    },\n    \"fallback_action\": {\n      \"channel\": \"call|sms|email|whatsapp|no_action\",\n      \"timing_if_no_response\": \"24h|3_days|next_week|null\",\n      \"message\": \"string or null\"\n    },\n    \"followup_sequence_7d\": [\n      { \"day\": 0, \"channel\": \"string\", \"goal\": \"string\" }\n    ],\n    \"risk_flags\": [\"string\"]\n  },\n  \"contact\": {\n    \"caller_name\": \"string (optional)\",\n    \"caller_number\": \"string (optional — required for call/sms)\",\n    \"caller_email\": \"string (optional — required for email)\"\n  }\n}\n```\n\n---\n\n## Input normalization — run immediately after lead_id is resolved\n\nThe strategist output may arrive in a partially flattened structure where `next_best_action` is absent. Before executing any step, resolve the channel and priority_tier using the first matching rule:\n\n**Resolve channel:**\n1. `followup_strategist_output.next_best_action.channel` is present and non-null → use it\n2. `followup_strategist_output.output.next_best_action.channel` is present → use it\n3. `followup_strategist_output.channel` exists at the top level (flat output from n8n insert result) → use it\n4. None of the above yield a value → set resolved channel = `no_action` and add risk flag: `\"channel could not be resolved from input — defaulting to no_action\"`\n\n**Resolve priority_tier:**\n1. `followup_strategist_output.priority_tier` → use it\n2. `followup_strategist_output.output.priority_tier` → use it\n3. Neither present → default to `\"unknown\"` and add risk flag: `\"priority_tier missing from input — defaulted to unknown\"`\n\nUse the **resolved channel** and **resolved priority_tier** for all subsequent step decisions. Never re-derive or infer them from other signals.\n\n---\n\n## Pre-execution validation\n\nBefore calling any send tool, run these checks in order. If any check fails, skip that channel and treat it as a tool failure:\n\n1. **Channel vs. contact match:**\n   - `sms` or `call` requires `contact.caller_number` to be present and non-empty.\n   - `email` requires `contact.caller_email` to be present and non-empty.\n   - If the required contact field is missing, set execution_status = `contact_missing` and skip the send tool.\n\n2. **Message content present:**\n   - For SMS/WhatsApp: `next_best_action.message.sms` must be a non-empty string.\n   - For email: `next_best_action.message.email.subject` and `.body` must be non-empty strings.\n   - For call: `next_best_action.message.call.opening_line` must be a non-empty string.\n   - If the message field is null or empty, set execution_status = `message_missing` and skip.\n\n3. **Character limit re-validation (defensive):**\n   - SMS message must be ≤ 160 characters. If over limit, truncate to 157 chars and append \"…\". Add a risk flag: `\"SMS message truncated from {original_length} to 160 chars before send\"`.\n   - Email subject must be ≤ 50 characters. If over limit, truncate to 47 chars and append \"…\". Add a risk flag accordingly.\n\n---\n\n## Tool specifications\n\n### `send_sms`\nSends an SMS via Twilio.\n\n**Input:**\n```json\n{\n  \"to_number\": \"string — E.164 format (e.g. +61400000000)\",\n  \"message_body\": \"string — plain text, ≤160 chars\",\n  \"lead_id\": \"string\"\n}\n```\n\n**Output:**\n```json\n{\n  \"message_sid\": \"string — Twilio SID (e.g. SMxxxxxxxx)\",\n  \"delivery_status\": \"sent|failed|unknown\",\n  \"error_code\": \"string or null\",\n  \"error_message\": \"string or null\",\n  \"timestamp\": \"ISO 8601\"\n}\n```\n\n**Usage rules:**\n- Use `contact.caller_number` as `to_number`.\n- Use `next_best_action.message.sms` as `message_body` (after character limit check).\n- If `next_best_action.channel = whatsapp` and SMS is available: use `next_best_action.message.whatsapp` as message_body. If `whatsapp` message is null, fall back to `next_best_action.message.sms`.\n- Record `message_sid` as `external_ref_id` in output.\n\n---\n\n### `send_email`\nSends a transactional email via SendGrid.\n\n**Input:**\n```json\n{\n  \"to_email\": \"string — valid email address\",\n  \"subject\": \"string — ≤50 chars\",\n  \"body\": \"string — 3–5 sentences plain text\",\n  \"sender_name\": \"string — franchise business name or rep name\",\n  \"lead_id\": \"string\"\n}\n```\n\n**Output:**\n```json\n{\n  \"message_id\": \"string — SendGrid message ID\",\n  \"delivery_status\": \"sent|failed|unknown\",\n  \"error_code\": \"string or null\",\n  \"error_message\": \"string or null\",\n  \"timestamp\": \"ISO 8601\"\n}\n```\n\n**Usage rules:**\n- Use `contact.caller_email` as `to_email`.\n- Use `next_best_action.message.email.subject` and `.body`.\n- `sender_name`: use `contact.caller_name` if it represents the rep; otherwise default to `\"The Team\"`.\n- Record `message_id` as `external_ref_id` in output.\n\n---\n\n### `initiate_call`\nPlaces an autonomous outbound AI voice call using **ElevenLabs Conversational AI** over Twilio. ElevenLabs conducts the full two-way conversation — it handles machine detection, voicemail delivery, live objection handling, and transfers. Twilio places the call; ElevenLabs owns the conversation from pick-up to hang-up.\n\n**Important — async nature:** The ElevenLabs API responds immediately with a `conversation_id` and the Twilio `call_sid`. The call outcome and full transcript arrive asynchronously via ElevenLabs' post-call webhook. The agent sets `execution_status = queued` on success. The orchestrator feeds the transcript into `response_handler_agent` when the webhook fires.\n\n**How it works:**\n1. This tool calls the ElevenLabs outbound call API (`POST /v1/convai/twilio/outbound-call`)\n2. ElevenLabs initiates the Twilio call from the linked franchise number\n3. On pick-up, ElevenLabs' agent conducts the conversation using the `agent_variables` passed here as live context\n4. On answering machine detection, ElevenLabs automatically leaves a voicemail and hangs up\n5. After the call ends, ElevenLabs fires a webhook with: full transcript, call outcome, duration, and any data collected\n\n**Input:**\n```json\n{\n  \"agent_id\": \"string — ElevenLabs Conversational AI agent ID (pre-configured for franchise)\",\n  \"to_number\": \"string — E.164 format (e.g. +61400000000)\",\n  \"agent_variables\": {\n    \"lead_name\": \"string or null — personalises the opening; null if name not available\",\n    \"objective\": \"close|overcome_objection|nurture|low_touch_nurture|clarify_intent\",\n    \"priority_tier\": \"hot|warm|cold|unknown\",\n    \"opening_line\": \"string — agent begins the conversation with this line verbatim\",\n    \"talking_points\": [\"string\", \"string\"],\n    \"closing_cta\": \"string — desired customer action the agent works toward\",\n    \"objections\": [\"string\"]\n  },\n  \"lead_id\": \"string\"\n}\n```\n\n**Output:**\n```json\n{\n  \"conversation_id\": \"string — ElevenLabs conversation ID\",\n  \"call_sid\": \"string — Twilio Call SID (e.g. CAxxxxxxxx)\",\n  \"call_status\": \"queued|ringing|in-progress|failed|unknown\",\n  \"error_code\": \"string or null\",\n  \"error_message\": \"string or null\",\n  \"timestamp\": \"ISO 8601\"\n}\n```\n\n**Usage rules:**\n- Use `contact.caller_number` as `to_number`.\n- Build `agent_variables` from `next_best_action.message.call` and `lead_intelligence_output` fields. Pass `objections` only when `next_best_action.objective = overcome_objection`.\n- `agent_id` comes from franchise config — the orchestrator provides it; if absent, add risk flag: `\"agent_id missing — cannot initiate ElevenLabs call\"` and treat as execution failure.\n- Do **not** construct a voicemail script — ElevenLabs handles voicemail detection and delivery using the `opening_line` and `closing_cta` from `agent_variables`.\n- If `call_status = failed`, treat as execution failure and attempt fallback channel.\n- Record `conversation_id` as `external_ref_id` in output (preferred over `call_sid` for ElevenLabs webhook correlation).\n- If `call_status = queued` or `ringing`, set `execution_status = queued` in output.\n\n---\n\n## Execution decision table\n\n| next_best_action.channel | Contact field required | Send tool       | execution_status on success |\n|--------------------------|------------------------|-----------------|------------------------------|\n| sms                      | caller_number          | send_sms        | sent                         |\n| whatsapp                 | caller_number          | send_sms        | sent                         |\n| email                    | caller_email           | send_email      | sent                         |\n| call                     | caller_number          | initiate_call   | queued                       |\n| no_action                | —                      | none            | no_action                    |\n\n---\n\n## Fallback execution rules\n\nAttempt the fallback channel **only** when:\n- Primary send tool returns `delivery_status = failed` OR `call_status = failed`\n- `fallback_action.channel` is not `no_action`\n\nWhen executing fallback:\n- Use `fallback_action.message` as the message body (it is a single plain-text string regardless of channel).\n- Apply the same contact field validation as primary.\n- Do not attempt a second fallback if the fallback also fails.\n- Set `attempt_type = fallback` in the output.\n\n---\n\n## Risk flags — append to `risk_flags` when triggered\n\n| Condition | Flag |\n|-----------|------|\n| Primary execution failed | `\"Primary {channel} execution failed: {error_message}\"` |\n| Fallback triggered | `\"Fallback triggered — primary {channel} failed\"` |\n| Fallback also failed | `\"Both primary and fallback execution failed — no outreach sent\"` |\n| Contact field missing for primary channel | `\"contact_{field} missing — cannot execute {channel}\"` |\n| Message content null for primary channel | `\"message.{channel} is null — cannot execute\"` |\n| SMS truncated | `\"SMS message truncated from {n} to 160 chars before send\"` |\n| Email subject truncated | `\"Email subject truncated from {n} to 50 chars before send\"` |\n| No action on hot lead | `\"no_action on hot priority lead — verify intent\"` |\n| priority_tier = unknown | `\"priority_tier is unknown — verify intelligence output is valid\"` |\n| `agent_id` missing from input | `\"agent_id missing — cannot initiate ElevenLabs call; check franchise config\"` |\n| `opening_line` or `closing_cta` null on call channel | `\"opening_line or closing_cta is null — ElevenLabs agent_variables incomplete; call may lack direction\"` |\n\n---\n\n## Output schema\n\n```json\n{\n  \"lead_id\": \"string — echoed from input\",\n  \"priority_tier\": \"hot|warm|cold|unknown — echoed from input\",\n  \"channel_executed\": \"call|sms|email|whatsapp|no_action\",\n  \"attempt_type\": \"primary|fallback|none\",\n  \"execution_status\": \"sent|queued|failed|no_action|contact_missing|message_missing\",\n  \"external_ref_id\": \"string or null — Twilio Call SID / Message SID / SendGrid message ID\",\n  \"delivery_status\": \"sent|delivered|queued|ringing|in-progress|completed|no-answer|busy|failed|unknown|pending|no_action\",\n  \"answered_by\": \"human|machine|fax|unknown|null — populated from status callback for call channel; null for all other channels\",\n  \"executed_at\": \"ISO 8601 timestamp or null\",\n  \"message_snapshot\": {\n    \"sms\": \"string or null — exact text sent\",\n    \"email\": { \"subject\": \"string or null\", \"body\": \"string or null\" },\n    \"call\": {\n      \"opening_line\": \"string or null\",\n      \"talking_points\": [\"string\"] ,\n      \"closing_cta\": \"string or null\"\n    }\n  },\n  \"fallback_triggered\": false,\n  \"fallback_reason\": \"string or null\",\n  \"risk_flags\": [\"string\"],\n  \"execution_notes\": [\"string — all narrative about what happened and why\"]\n}\n```\n\n**Field rules:**\n- `message_snapshot`: always include all three keys — `sms`, `email`, and `call` — in every output. Populate only the sub-field for the channel that was actually executed. Set the other two keys explicitly to `null`. Never omit a key.\n- `fallback_triggered`: `true` only when the fallback send tool was called (regardless of fallback success).\n- `fallback_reason`: populate when `fallback_triggered = true`. Describe what failed on the primary.\n- `answered_by`: always `null` in the immediate output for call channel — ElevenLabs detects human vs machine during the call and reports it in the post-call webhook. The orchestrator populates this field when the webhook fires.\n- `delivery_status` for call channel: use `call_status` from `initiate_call` response directly (`queued`, `ringing`, `failed`, `unknown`). Final statuses (`completed`, `no-answer`, `busy`) arrive via the ElevenLabs post-call webhook (`termination_reason`) — the orchestrator maps these and updates the engagement record at that point.\n- **Null serialisation rule:** When a field's value is absent or not applicable, output JSON `null` — never the string `\"null\"`. The string `\"null\"` is not a valid substitute for a JSON null and will fail schema validation on any field typed `null` or enum-constrained. This applies to every nullable field in this schema: `external_ref_id`, `answered_by`, `executed_at`, `fallback_reason`, and all sub-fields inside `message_snapshot`.\n\n---\n\n## § Builder Reference\n\n### Pipeline position\n\n```\n[followup_strategist_agent]\n    ↓ followup_strategist_output + contact\n[outreach_executor_agent]\n    ↓ Calls: send_sms | send_email | initiate_call\n    ↓ outreach_executor_output\n[response_handler_agent]  ← triggered on inbound reply\n```\n\n### n8n integration notes\n\n- Wire `send_sms` to a Twilio HTTP node (POST `/2010-04-01/Accounts/{AccountSid}/Messages.json`)\n- Wire `send_email` to a SendGrid HTTP node (POST `/v3/mail/send`) or the n8n SendGrid node\n- Wire `initiate_call` to the ElevenLabs outbound call API:\n  - `POST https://api.elevenlabs.io/v1/convai/twilio/outbound-call`\n  - Headers: `xi-api-key: {ELEVENLABS_API_KEY}`\n  - Body: `{ \"agent_id\": \"...\", \"agent_phone_number_id\": \"...\", \"to\": \"+61400000000\", \"conversation_initiation_client_data\": { \"dynamic_variables\": { ...agent_variables } } }`\n  - `agent_phone_number_id` is the ElevenLabs phone number ID linked to your Twilio number — configure once in ElevenLabs dashboard under Conversational AI → Phone Numbers\n  - ElevenLabs handles the full Twilio call lifecycle: places the call, manages the conversation, detects answering machines, leaves voicemails — no TwiML node needed\n  - After call ends, ElevenLabs fires a post-call webhook with: `conversation_id`, `call_sid`, `transcript`, `call_successful`, `duration_seconds`, `termination_reason`\n  - Wire the ElevenLabs post-call webhook to:\n    1. A Postgres UPDATE node → write `outcome_status`, `answered_by`, `call_duration` back to `engagement_status` row (match on `external_ref_id = conversation_id`)\n    2. A new n8n workflow trigger that feeds the transcript into `response_handler_agent` as `inbound_response.response_text`\n- Pass `outreach_executor_output` as the trigger payload for `response_handler_agent` when an inbound reply arrives (SMS/email) or when the ElevenLabs post-call webhook fires (call) — in the call case, set `inbound_response.response_text` to the full conversation transcript from the webhook payload\n\n### engagement_status table fields used\n\n| Field | Value |\n|-------|-------|\n| lead_id | from input |\n| channel | channel_executed |\n| engagement_event | `outbound_sent` (SMS/email) or `outbound_call_queued` (call) |\n| outcome_status | execution_status (`sent`, `queued`, `failed`, etc.) |\n| external_ref_id | ElevenLabs `conversation_id` (call) / Twilio Message SID (SMS) / SendGrid message ID (email) |\n| answered_by | null on insert; updated to `human`/`machine`/`fax` when ElevenLabs post-call webhook fires |\n| call_transcript | null on insert; updated with full transcript from ElevenLabs post-call webhook |\n| timestamp_sent | executed_at |\n| message_type | next_best_action.objective mapped to message type |\n\n### Idempotency\n\nBefore calling any send tool, the orchestrator (n8n) should check the `engagement_status` table for a row with the same `lead_id`, `channel`, and `timestamp_sent` within the last 10 minutes. If a matching row exists with `outcome_status = sent/initiated`, skip execution to prevent duplicate sends. This check is the orchestrator's responsibility — this agent does not perform it.",
+          "maxIterations": 20
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -688,
+        32
+      ],
+      "id": "5d9fe11b-c0c1-4b89-b0eb-16348a1313f8",
+      "name": "outreach_executor_agent"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Initiates an autonomous outbound AI voice call to a lead using ElevenLabs Conversational AI. \nCall this tool ONLY when next_best_action.channel = \"call\". The ElevenLabs agent conducts the \nfull conversation using the provided opening_line, talking_points, and closing_cta. \nHandles human pick-up and voicemail automatically. Returns a conversation_id and call_sid.\n",
+        "method": "POST",
+        "url": "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('JSON', ``, 'json') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -624,
+        368
+      ],
+      "id": "513068cb-4470-4905-805f-a8c63de11ab1",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bnHsmBIMaAJURizP",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "engagement_status",
+          "mode": "list",
+          "cachedResultName": "engagement_status"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.output.lead_id }}",
+            "strategy_used": "={{ $json.output.next_best_action.objective }}",
+            "channel": "={{ $json.output.next_best_action.channel }}",
+            "message_type": "={{ \n  ({\n    'close': 'persuasion',\n    'overcome_objection': 'persuasion',\n    'nurture': 'nurture',\n    'low_touch_nurture': 'nurture',\n    'clarify_intent': 'reminder'\n  })[$json.output.next_best_action.objective] ?? 'nurture'}}",
+            "engagement_event": "scheduled",
+            "outcome_status": "pending_send"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "strategy_used",
+              "displayName": "strategy_used",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message_type",
+              "displayName": "message_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagement_event",
+              "displayName": "engagement_event",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_time_hours",
+              "displayName": "response_time_hours",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "outcome_status",
+              "displayName": "outcome_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagement_id",
+              "displayName": "engagement_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "timestamp_sent",
+              "displayName": "timestamp_sent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "outputColumns": [
+            "*"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -976,
+        -64
+      ],
+      "id": "a7ed7b39-f4ed-4100-a47e-8f4c9c6dd27c",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "fHxQhlg2Xq31j9uY",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Send an SMS via Twilio. Call this tool when next_best_action.channel = sms or whatsapp",
+        "from": "+18557749996",
+        "to": "=18777804236",
+        "message": "={{ $fromAI('message_body', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilioTool",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        288
+      ],
+      "id": "b519e8ed-7001-460b-bd8d-ffeada85173e",
+      "name": "send_sms",
+      "credentials": {
+        "twilioApi": {
+          "id": "7lCY9Ny4IPmH08p7",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3088,
+        32
+      ],
+      "id": "a5ff370f-af3e-4f40-b954-97c62bfc3402",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "description": "Check franchisee calendar and return available appointment slots or call-back windows. You MUST call this tool before writing any message when EITHER of these is true: (1) objective is \"close\" AND timing is immediate, today, or 24h AND channel is call or sms — OR (2) intent is \"booking_appointment\" AND timing is immediate, today, or 24h. Inputs: lead_id, channel, timing, lead_time_pref.",
+        "workflowId": {
+          "__rl": true,
+          "value": "5p1Hx6lU1TvXU9GD",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5p1Hx6lU1TvXU9GD",
+          "cachedResultName": "[Tool]Franchisee_availability"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $('Insert or update rows in a table').item.json.lead_id }}",
+            "timing": "={{ $('Set Caller Details').item.json.output.lead_time_pref }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "timing",
+              "displayName": "timing",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -1248,
+        256
+      ],
+      "id": "afa751b6-533e-49b3-9f5c-5164a89bc76c",
+      "name": "query_franchisee_availability"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Sender_Email', ``, 'string') }}",
+        "fromName": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Sender_Name', ``, 'string') }}",
+        "toEmail": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Recipient_Email', ``, 'string') }}",
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', ``, 'string') }}",
+        "contentValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message_Body', ``, 'string') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGridTool",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        368
+      ],
+      "id": "03bc72c3-3420-453f-bae6-5a6369dcb776",
+      "name": "Send an email in SendGrid",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"outreach_executor_output\",\n  \"type\": \"object\",\n  \"required\": [\n    \"lead_id\",\n    \"priority_tier\",\n    \"channel_executed\",\n    \"attempt_type\",\n    \"execution_status\",\n    \"external_ref_id\",\n    \"delivery_status\",\n    \"executed_at\",\n    \"answered_by\",\n    \"message_snapshot\",\n    \"fallback_triggered\",\n    \"fallback_reason\",\n    \"risk_flags\",\n    \"execution_notes\"\n  ],\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"lead_id\": {\n      \"type\": \"string\",\n      \"description\": \"Echoed exactly from followup_strategist_output.lead_id. Never generated or modified.\"\n    },\n    \"priority_tier\": {\n      \"type\": \"string\",\n      \"enum\": [\"hot\", \"warm\", \"cold\", \"unknown\"],\n      \"description\": \"Echoed from followup_strategist_output. Never re-derived.\"\n    },\n    \"channel_executed\": {\n      \"type\": \"string\",\n      \"enum\": [\"call\", \"sms\", \"email\", \"whatsapp\", \"no_action\"],\n      \"description\": \"The channel that was actually executed (primary or fallback). no_action when channel was no_action or all execution attempts failed.\"\n    },\n    \"attempt_type\": {\n      \"type\": \"string\",\n      \"enum\": [\"primary\", \"fallback\", \"none\"],\n      \"description\": \"primary when next_best_action was executed successfully. fallback when primary failed and fallback_action was used. none when channel is no_action.\"\n    },\n    \"execution_status\": {\n      \"type\": \"string\",\n      \"enum\": [\"sent\", \"queued\", \"failed\", \"no_action\", \"contact_missing\", \"message_missing\"],\n      \"description\": \"sent: SMS or email dispatched. queued: outbound call placed and queued by Twilio (final outcome arrives via status callback). failed: all send attempts failed. no_action: channel was no_action. contact_missing: required contact field absent. message_missing: message content was null.\"\n    },\n    \"external_ref_id\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"Twilio Call SID for calls (CAxxxxxxxx), Twilio Message SID for SMS (SMxxxxxxxx), SendGrid message ID for email. Null when execution failed or no_action.\"\n    },\n    \"delivery_status\": {\n      \"type\": \"string\",\n      \"enum\": [\"sent\", \"delivered\", \"queued\", \"ringing\", \"in-progress\", \"completed\", \"no-answer\", \"busy\", \"failed\", \"unknown\", \"pending\", \"no_action\"],\n      \"description\": \"Status returned by the send integration. For call: Twilio initial status (queued/ringing); final statuses (completed/no-answer/busy/failed) arrive via status callback and are written by the orchestrator. no_action when channel was no_action.\"\n    },\n    \"answered_by\": {\n      \"type\": [\"string\", \"null\"],\n      \"enum\": [\"human\", \"machine\", \"fax\", \"unknown\", null],\n      \"description\": \"Twilio machine detection result for call channel only. Always null on initial output — populated asynchronously by orchestrator when status callback fires. Null for SMS and email channels.\"\n    },\n    \"executed_at\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"ISO 8601 UTC timestamp of when the send tool was called. Null when no send tool was called.\"\n    },\n    \"message_snapshot\": {\n      \"type\": \"object\",\n      \"required\": [\"sms\", \"email\", \"call\"],\n      \"additionalProperties\": false,\n      \"description\": \"Snapshot of the exact message content that was sent. Only the sub-field for the executed channel is populated; all others are null.\",\n      \"properties\": {\n        \"sms\": {\n          \"type\": [\"string\", \"null\"],\n          \"maxLength\": 160,\n          \"description\": \"Exact SMS text sent. Null if channel was not sms or whatsapp.\"\n        },\n        \"email\": {\n          \"type\": [\"object\", \"null\"],\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"subject\": {\n              \"type\": [\"string\", \"null\"],\n              \"maxLength\": 50\n            },\n            \"body\": {\n              \"type\": [\"string\", \"null\"]\n            }\n          },\n          \"description\": \"Null if channel was not email.\"\n        },\n        \"call\": {\n          \"type\": [\"object\", \"null\"],\n          \"additionalProperties\": false,\n          \"properties\": {\n            \"opening_line\": { \"type\": [\"string\", \"null\"] },\n            \"talking_points\": {\n              \"type\": [\"array\", \"null\"],\n              \"items\": { \"type\": \"string\" },\n              \"minItems\": 2,\n              \"maxItems\": 3\n            },\n            \"closing_cta\": { \"type\": [\"string\", \"null\"] }\n          },\n          \"description\": \"Null if channel was not call.\"\n        }\n      }\n    },\n    \"fallback_triggered\": {\n      \"type\": \"boolean\",\n      \"description\": \"True when primary execution failed and the fallback send tool was called (regardless of fallback outcome).\"\n    },\n    \"fallback_reason\": {\n      \"type\": [\"string\", \"null\"],\n      \"description\": \"Human-readable description of why primary execution failed. Null when fallback_triggered is false.\"\n    },\n    \"risk_flags\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"description\": \"Populated whenever a guardrail condition is met during execution.\"\n    },\n    \"execution_notes\": {\n      \"type\": \"array\",\n      \"items\": { \"type\": \"string\" },\n      \"minItems\": 1,\n      \"description\": \"Narrative explaining what was executed, what tools were called, and any issues encountered. All execution reasoning goes here.\"\n    }\n  }\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        320
+      ],
+      "id": "44727c16-803a-431f-b78d-15dc27052887",
+      "name": "Structured Output Parser2"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Query prior engagement history for a lead from the engagement_status table.\nCall this tool when: the transcript is short, intent is unclear, urgency is \nunclear, or you cannot reliably score the lead from transcript alone.\nInput: lead_id (string). Returns all prior touchpoints for that lead.",
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "engagement_status",
+          "mode": "list",
+          "cachedResultName": "engagement_status"
+        },
+        "limit": 20,
+        "where": {
+          "values": [
+            {
+              "column": "lead_id",
+              "value": "={{ $json.lead_id }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "timestamp_sent",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        -2064,
+        256
+      ],
+      "id": "a1ca23d6-acbd-4017-b374-f10339dbc9b8",
+      "name": "query_engagement_history",
+      "credentials": {
+        "postgres": {
+          "id": "fHxQhlg2Xq31j9uY",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "franchisee_config",
+        "limit": 1
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -2704,
+        -336
+      ],
+      "id": "b2d9b100-ea9c-4891-9dd6-8431f670c8ec",
+      "name": "Get many rows",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "udLf8ikudVRjjves",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "import re\nimport hashlib\n\nMIN_USER_WORDS = 10  # tune this threshold\n\ndef clean_alnum(s):\n    return re.sub(r'[^A-Z0-9]', '', (s or '').upper())\n\ndef normalize_name(name):\n    n = clean_alnum(name)\n    return (n[:6] if n else \"UNKNOWN\")\n\ndef normalize_phone(phone):\n    digits = re.sub(r'\\D', '', (phone or ''))\n    return (digits[-4:] if len(digits) >= 4 else \"0000\")\n\ndef normalize_email(email):\n    if not email or email.strip().lower() in [\"unknown\", \"na\", \"n/a\", \"none\", \"null\", \"\"]:\n        return \"NOEMAIL\"\n    local = email.split('@')[0]\n    e = clean_alnum(local)\n    return (e[:6] if e else \"NOEMAIL\")\n\nimport re\n\ndef get_user_word_count(transcript: str) -> int:\n    \"\"\"\n    Count words spoken by the User (customer) only.\n    Strips the 'Call Transcript:' header before parsing.\n    \"\"\"\n    # Strip the header prefix if present\n    text = re.sub(r\"(?i)^call transcript\\s*:?\\s*\", \"\", transcript.strip())\n\n    # Extract all User: turn content\n    user_turns = re.findall(r\"(?i)^User\\s*:\\s*(.+?)(?=\\nAgent\\s*:|\\nUser\\s*:|\\Z)\", text, re.MULTILINE | re.DOTALL)\n\n    # Flatten and count words\n    user_speech = \" \".join(t.strip() for t in user_turns)\n    return len(user_speech.split())\n\n\n\ndef should_process_transcript(transcript: str) -> bool:\n    return get_user_word_count(transcript) >= MIN_USER_WORDS\n\n\ndef hash6(name, phone, email):\n    # Deterministic hash from full normalized identity fields\n    base = f\"{clean_alnum(name)}|{re.sub(r'\\\\D', '', phone or '')}|{clean_alnum(email)}\"\n    h = hashlib.sha1(base.encode(\"utf-8\")).hexdigest().upper()\n    return h[:6]\n\nout = []\n\nfor item in _items:\n    j = item.get(\"json\", {})\n    text = j.get(\"textContent\", \"\") or \"\"\n\n    # Extract only the Call Transcript section\n    transcript_match = re.search(r\"(?i)call transcript\\s*:?\\s*\\n(.+)\", text, re.DOTALL)\n    transcript = transcript_match.group(1).strip() if transcript_match else \"\"\n\n    # After (word count-based)\n    if not should_process_transcript(transcript):\n        continue\n\n    # Extract caller fields\n    name_match = re.search(r\"Caller's Name:\\s*(.*)\", text, re.IGNORECASE)\n    num_match = re.search(r\"Caller's Number:\\s*(.*)\", text, re.IGNORECASE)\n    email_match = re.search(r\"Caller's Email:\\s*(.*)\", text, re.IGNORECASE)\n    agent_num_match = re.search(r\"Number Called:\\s*(.*)\", text, re.IGNORECASE)\n    agent_phone_number = agent_num_match.group(1).strip() if agent_num_match else \"\"\n\n\n    caller_name = name_match.group(1).strip() if name_match else \"\"\n    caller_number = num_match.group(1).strip() if num_match else \"\"\n    caller_email = email_match.group(1).strip() if email_match else \"\"\n\n    # Readable + collision-resistant lead_id\n    lead_id = \"LID-{0}-{1}-{2}-{3}\".format(\n        normalize_name(caller_name),\n        normalize_phone(caller_number),\n        normalize_email(caller_email),\n        hash6(caller_name, caller_number, caller_email)\n    )\n\n    out.append({\n        \"json\": {\n            \"lead_id\": lead_id,\n             \"agent_phone_number\": agent_phone_number,   \n             \"extracted_data\": {\n                \"name\": caller_name,\n                \"number\": caller_number,\n                \"email\": caller_email\n            },\n            \"llm_input\": transcript\n        }\n    })\n\nreturn out"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2912,
+        -16
+      ],
+      "id": "a1d0f4e4-2e2f-4334-adb9-2b2bb512c3f8",
+      "name": "Extract Caller Details"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "lead_id": "LID-UNKNOW-5873-NOEMAIL-DC408D",
+          "textContent": "Your AI Employee has handled another call for Ksomsolutions.com! Call details below:\r\nCaller's Number: +1412555873\r\nNumber Called: +14704704157\r\nCall Duration: 5 seconds\r\nAI Agent Name: KSOM Voice Assistant\r\n\r\nCall Summary:\r\nThe call was initiated by the user but ended abruptly after the agent's greeting.\r\n\r\nCall Transcript:\r\nAgent: Thank you for calling Sparkle Home Services, how can I help?\r\nUser: Hi, I found you on Google. I need a regular fortnightly cleaner for my three bedroom house, ideally starting this week.\r\nAgent: Great, we can definitely help. Are you flexible on the day?\r\nUser: Weekdays are best, Tuesday or Wednesday. I work from home so I'm around. My last cleaner was inconsistent so I really need someone reliable.\r\nAgent: Understood. We assign the same team each visit. I can book an initial assessment Wednesday this week to lock in your slot — does that work?\r\nUser: Yes Wednesday is perfect, let's get it sorted. My address is 14 Rosewood Drive, Kew and mobile is +1412555873. I'm Sarah Mitchell.\r\nAgent: Brilliant Sarah, you're confirmed for Wednesday. We'll send a confirmation SMS shortly.\r\nUser: Wonderful, thank you so much. Looking forward to it."
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "lead_intelligence_engine",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "lead_intelligence_engine",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "lead_intelligence_engine": {
+      "main": [
+        [
+          {
+            "node": "Set Caller Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Caller Details": {
+      "main": [
+        [
+          {
+            "node": "Insert or update rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set lead_id and llm_input ": {
+      "main": [
+        [
+          {
+            "node": "lead_intelligence_engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-up Strategist Agent": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "outreach_executor_agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Follow-up Strategist Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Follow-up Strategist Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert or update rows in a table": {
+      "main": [
+        [
+          {
+            "node": "Follow-up Strategist Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "outreach_executor_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "ai_tool": [
+        [
+          {
+            "node": "outreach_executor_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        []
+      ]
+    },
+    "send_sms": {
+      "ai_tool": [
+        [
+          {
+            "node": "outreach_executor_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extract Caller Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "query_franchisee_availability": {
+      "ai_tool": [
+        [
+          {
+            "node": "Follow-up Strategist Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "outreach_executor_agent": {
+      "main": [
+        []
+      ]
+    },
+    "Send an email in SendGrid": {
+      "ai_tool": [
+        [
+          {
+            "node": "outreach_executor_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "outreach_executor_agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "query_engagement_history": {
+      "ai_tool": [
+        [
+          {
+            "node": "lead_intelligence_engine",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Set lead_id and llm_input ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Caller Details": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "45f358a3-85dd-46d3-852b-4b5518ed41a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e73562f49d572980e485cce90fd1964f528591278257b85bc9474e873167a0b9"
+  },
+  "id": "4CorILUM7dTEvLNh",
+  "tags": []
+}
